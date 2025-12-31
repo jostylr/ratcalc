@@ -1,0 +1,14 @@
+{
+    "name": "ratcalc",
+    "version": "1.0.0",
+    "description": "Terminal calculator for ratmath",
+    "main": "index.js",
+    "bin": {
+        "ratcalc": "index.js"
+    },
+    "type": "module",
+    "dependencies": {
+        "ratmath": "file:../ratmath",
+        "ratmath-parser": "file:../ratmath-parser"
+    }
+}
