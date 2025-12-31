@@ -5,8 +5,8 @@
  * Supports single-character variables, function definitions, and special functions like SUM, PROD, SEQ.
  */
 
-import { Rational, RationalInterval, Integer, BaseSystem } from "ratmath";
-import { Parser } from "ratmath-parser";
+import { Rational, RationalInterval, Integer, BaseSystem } from "@ratmath/core";
+import { Parser } from "@ratmath/parser";
 
 export class VariableManager {
   constructor() {

@@ -8,7 +8,7 @@
     },
     "type": "module",
     "dependencies": {
-        "ratmath": "file:../ratmath",
-        "ratmath-parser": "file:../ratmath-parser"
+        "@ratmath/core": "^0.2.0",
+        "@ratmath/parser": "^0.2.0"
     }
 }
