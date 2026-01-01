@@ -9,6 +9,7 @@
     "type": "module",
     "dependencies": {
         "@ratmath/core": "^0.2.0",
-        "@ratmath/parser": "^0.2.0"
+        "@ratmath/parser": "^0.2.0",
+        "@ratmath/algebra": "^0.2.0"
     }
 }

@@ -8,8 +8,7 @@
  */
 
 import { Rational, RationalInterval, Integer, BaseSystem } from "@ratmath/core";
-import { Parser } from "@ratmath/parser";
-import { VariableManager } from "./src/var.js";
+import { VariableManager } from "@ratmath/algebra";
 import { createInterface } from "readline";
 
 class Calculator {

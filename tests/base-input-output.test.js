@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { BaseSystem } from "@ratmath/core";
-import { VariableManager } from "../src/var.js";
+import { VariableManager } from "@ratmath/algebra";
 
 describe("Base Input-Output Functionality", () => {
   describe("VariableManager Input Base Preprocessing", () => {
