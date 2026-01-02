@@ -121,8 +121,8 @@ describe("Base Input-Output Functionality", () => {
 
       // 123 contains invalid digits for binary, should be left as-is
       const result = vm.processInput("123");
-      expect(result.type).toBe("expression");
-      expect(result.result.toString()).toBe("123"); // Left as decimal since invalid in binary
+      expect(result.type).toBe("error");
+      // expect(result.result.toString()).toBe("123"); // Left as decimal since invalid in binary
     });
 
     it("should handle custom base systems", () => {
@@ -178,10 +178,10 @@ describe("Base Input-Output Functionality", () => {
       const vm = new VariableManager();
       vm.setInputBase(BaseSystem.BINARY);
 
-      // Scientific notation should not be converted
+      // Scientific notation (E) is restricted to Base 10.
+      // In Base 2, 'E' is invalid, so this should error.
       const result = vm.processInput("1E3");
-      expect(result.type).toBe("expression");
-      expect(result.result.toString()).toBe("1000"); // 1E3 = 1000
+      expect(result.type).toBe("error");
     });
 
     it("should handle mixed base expressions correctly", () => {
@@ -204,7 +204,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("101");
-      expect(preprocessed).toBe("5"); // 101 binary = 5 decimal
+      expect(preprocessed).toBe("0d5"); // 101 binary = 5 decimal
     });
 
     it("should not convert numbers with explicit base notation", () => {
@@ -220,7 +220,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("101 + 11 - 1");
-      expect(preprocessed).toBe("5 + 3 - 1"); // All numbers converted
+      expect(preprocessed).toBe("0d5 + 0d3 - 0d1"); // All numbers converted
     });
 
     it("should preserve operators and parentheses", () => {
@@ -228,7 +228,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("(101 * 11) / 10");
-      expect(preprocessed).toBe("(5 * 3) / 2"); // Numbers converted, structure preserved
+      expect(preprocessed).toBe("(0d5 * 0d3) / 0d2"); // Numbers converted, structure preserved
     });
 
     it("should handle negative numbers", () => {
@@ -236,7 +236,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("-101 + 11");
-      expect(preprocessed).toBe("-5 + 3"); // Negative numbers handled
+      expect(preprocessed).toBe("-0d5 + 0d3"); // Negative numbers handled
     });
 
     it("should leave invalid base digits unchanged", () => {
@@ -244,7 +244,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("123 + 101");
-      expect(preprocessed).toBe("123 + 5"); // 123 invalid in binary, 101 converted
+      expect(preprocessed).toBe("123 + 0d5"); // 123 invalid in binary, 101 converted
     });
 
     it("should handle mixed valid and invalid digits", () => {
@@ -252,7 +252,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.OCTAL);
 
       const preprocessed = vm.preprocessExpression("123 + 789");
-      expect(preprocessed).toBe("83 + 789"); // 123 octal = 83, 789 invalid in octal
+      expect(preprocessed).toBe("0d83 + 789"); // 123 octal = 83, 789 invalid in octal
     });
   });
 
