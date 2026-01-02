@@ -12,7 +12,8 @@ import { VariableManager } from "@ratmath/algebra";
 import { createInterface } from "readline";
 
 class Calculator {
-  constructor() {
+  constructor(logger = console.log) {
+    this.log = logger;
     this.outputMode = "BOTH"; // 'DECI', 'RAT', 'BOTH', 'SCI', 'CF'
     this.decimalLimit = 20; // Maximum decimal places before showing ...
     this.mixedDisplay = true; // Whether to show fractions as mixed numbers by default
@@ -41,7 +42,7 @@ class Calculator {
     });
 
     this.rl.on("close", () => {
-      console.log("\nGoodbye!");
+      this.log("\nGoodbye!");
       process.exit(0);
     });
   }
@@ -51,12 +52,12 @@ class Calculator {
     process.on("SIGINT", () => {
       if (this.shouldInterrupt) {
         // Already interrupting, force exit
-        console.log("\nForce exit");
+        this.log("\nForce exit");
         process.exit(0);
       } else {
         // Set interrupt flag for ongoing computation
         this.shouldInterrupt = true;
-        console.log(
+        this.log(
           "\nInterrupting computation... (Press Ctrl+C again to force exit)",
         );
       }
@@ -109,7 +110,7 @@ class Calculator {
         }
 
         this.customBases.set(baseNum, newBase);
-        console.log(`Defined custom base [${baseNum}] with characters "${range}"`);
+        this.log(`Defined custom base [${baseNum}] with characters "${range}"`);
       } catch (error) {
         console.error(`Error defining base: ${error.message}`);
       }
@@ -127,37 +128,37 @@ class Calculator {
 
     if (upperInput === "DECI") {
       this.outputMode = "DECI";
-      console.log("Output mode set to decimal");
+      this.log("Output mode set to decimal");
       return;
     }
 
     if (upperInput === "RAT") {
       this.outputMode = "RAT";
-      console.log("Output mode set to rational");
+      this.log("Output mode set to rational");
       return;
     }
 
     if (upperInput === "BOTH") {
       this.outputMode = "BOTH";
-      console.log("Output mode set to both decimal and rational");
+      this.log("Output mode set to both decimal and rational");
       return;
     }
 
     if (upperInput === "SCI") {
       this.outputMode = "SCI";
-      console.log("Output mode set to scientific notation");
+      this.log("Output mode set to scientific notation");
       return;
     }
 
     if (upperInput === "CF") {
       this.outputMode = "CF";
-      console.log("Output mode set to continued fraction");
+      this.log("Output mode set to continued fraction");
       return;
     }
 
     if (upperInput === "MIX") {
       this.mixedDisplay = !this.mixedDisplay;
-      console.log(
+      this.log(
         `Mixed number display ${this.mixedDisplay ? "enabled" : "disabled"}`,
       );
       return;
@@ -166,16 +167,16 @@ class Calculator {
     if (upperInput.startsWith("LIMIT")) {
       const limitStr = upperInput.substring(5).trim();
       if (limitStr === "") {
-        console.log(
+        this.log(
           `Current decimal display limit: ${this.decimalLimit} digits`,
         );
       } else {
         const limit = parseInt(limitStr);
         if (isNaN(limit) || limit < 1) {
-          console.log("Error: LIMIT must be a positive integer");
+          this.log("Error: LIMIT must be a positive integer");
         } else {
           this.decimalLimit = limit;
-          console.log(`Decimal display limit set to ${limit} digits`);
+          this.log(`Decimal display limit set to ${limit} digits`);
         }
       }
       return;
@@ -184,16 +185,16 @@ class Calculator {
     if (upperInput.startsWith("SCIPREC")) {
       const precStr = upperInput.substring(7).trim();
       if (precStr === "") {
-        console.log(
+        this.log(
           `Current scientific notation precision: ${this.sciPrecision} digits`,
         );
       } else {
         const precision = parseInt(precStr);
         if (isNaN(precision) || precision < 1) {
-          console.log("Error: SCIPREC must be a positive integer");
+          this.log("Error: SCIPREC must be a positive integer");
         } else {
           this.sciPrecision = precision;
-          console.log(
+          this.log(
             `Scientific notation precision set to ${precision} digits`,
           );
         }
@@ -203,14 +204,14 @@ class Calculator {
 
     if (upperInput === "SCIPERIOD") {
       this.showPeriodInfo = !this.showPeriodInfo;
-      console.log(
+      this.log(
         `Period info display ${this.showPeriodInfo ? "enabled" : "disabled"}`,
       );
       return;
     }
 
     // Handle BASE commands (but not BASES)
-    if (upperInput.startsWith("BASE") && upperInput !== "BASES") {
+    if (upperInput.startsWith("BASE") && !upperInput.startsWith("BASES")) {
       this.handleBaseCommand(input);
       return;
     }
@@ -220,7 +221,7 @@ class Calculator {
       this.inputBase = BaseSystem.BINARY;
       this.outputBases = [BaseSystem.BINARY];
       this.variableManager.setInputBase(BaseSystem.BINARY);
-      console.log("Base set to binary (base 2)");
+      this.log("Base set to binary (base 2)");
       return;
     }
 
@@ -228,7 +229,7 @@ class Calculator {
       this.inputBase = BaseSystem.HEXADECIMAL;
       this.outputBases = [BaseSystem.HEXADECIMAL];
       this.variableManager.setInputBase(BaseSystem.HEXADECIMAL);
-      console.log("Base set to hexadecimal (base 16)");
+      this.log("Base set to hexadecimal (base 16)");
       return;
     }
 
@@ -236,7 +237,7 @@ class Calculator {
       this.inputBase = BaseSystem.OCTAL;
       this.outputBases = [BaseSystem.OCTAL];
       this.variableManager.setInputBase(BaseSystem.OCTAL);
-      console.log("Base set to octal (base 8)");
+      this.log("Base set to octal (base 8)");
       return;
     }
 
@@ -244,7 +245,7 @@ class Calculator {
       this.inputBase = BaseSystem.DECIMAL;
       this.outputBases = [BaseSystem.DECIMAL];
       this.variableManager.setInputBase(BaseSystem.DECIMAL);
-      console.log("Base set to decimal (base 10)");
+      this.log("Base set to decimal (base 10)");
       return;
     }
 
@@ -253,8 +254,13 @@ class Calculator {
       return;
     }
 
-    if (upperInput === "BASES") {
-      this.showBases();
+    if (upperInput.startsWith("BASES")) {
+      const args = input.trim().substring(5).trim();
+      if (args) {
+        this.handleBasesCommand(args);
+      } else {
+        this.showBases();
+      }
       return;
     }
 
@@ -284,13 +290,13 @@ class Calculator {
       }
 
       if (varResult.type === "error") {
-        console.log(varResult.message);
+        this.log(varResult.message);
         return;
       }
 
       // Display result in requested format
       if (varResult.type === "assignment" || varResult.type === "function") {
-        console.log(varResult.message);
+        this.log(varResult.message);
       } else {
         try {
           this.displayResultInFormat(varResult.result, formatCmd.trim());
@@ -305,12 +311,12 @@ class Calculator {
     const varResult = this.variableManager.processInput(input);
 
     if (varResult.type === "error") {
-      console.log(varResult.message);
+      this.log(varResult.message);
     } else if (
       varResult.type === "assignment" ||
       varResult.type === "function"
     ) {
-      console.log(varResult.message);
+      this.log(varResult.message);
     } else {
       // Regular expression evaluation
       try {
@@ -326,18 +332,18 @@ class Calculator {
       error.message.includes("Division by zero") ||
       error.message.includes("Denominator cannot be zero")
     ) {
-      console.log("Error: Division by zero is undefined");
+      this.log("Error: Division by zero is undefined");
     } else if (
       error.message.includes("Factorial") &&
       error.message.includes("negative")
     ) {
-      console.log("Error: Factorial is not defined for negative numbers");
+      this.log("Error: Factorial is not defined for negative numbers");
     } else if (
       error.message.includes("Zero cannot be raised to the power of zero")
     ) {
-      console.log("Error: 0^0 is undefined");
+      this.log("Error: 0^0 is undefined");
     } else {
-      console.log(`Error: ${error.message}`);
+      this.log(`Error: ${error.message}`);
     }
   }
 
@@ -361,14 +367,14 @@ class Calculator {
         this.outputBases.length === 1 &&
         this.inputBase.equals(this.outputBases[0])
       ) {
-        console.log(
+        this.log(
           `Current base: ${this.inputBase.name} (base ${this.inputBase.base})`,
         );
       } else {
-        console.log(
+        this.log(
           `Input base: ${this.inputBase.name} (base ${this.inputBase.base})`,
         );
-        console.log(
+        this.log(
           `Output base${this.outputBases.length > 1 ? "s" : ""}: ${this.outputBases.map((b) => `${b.name} (base ${b.base})`).join(", ")}`,
         );
       }
@@ -387,11 +393,43 @@ class Calculator {
     this.handleLegacyBaseCommand(baseSpec);
   }
 
+  handleBasesCommand(args) {
+    const parts = args.split(",").map(p => p.trim());
+    const results = [];
+    const errors = [];
+
+    for (const part of parts) {
+      if (part.includes(":")) {
+        const [prefix, def] = part.split(":").map(s => s.trim());
+        if (prefix.length !== 1) {
+          errors.push(`Prefix '${prefix}' must be a single character`);
+          continue;
+        }
+        try {
+          const base = this.parseBaseSpec(def);
+          BaseSystem.registerPrefix(prefix, base);
+          results.push(`Linked prefix '0${prefix}' to ${base.name}`);
+        } catch (e) {
+          errors.push(`Error linking '${prefix}': ${e.message}`);
+        }
+      } else {
+        errors.push(`Invalid format '${part}'. Use prefix:base (e.g. t:32)`);
+      }
+    }
+
+    if (results.length > 0) {
+      this.log(results.join("\n"));
+    }
+    if (errors.length > 0) {
+      this.log(errors.join("\n"));
+    }
+  }
+
   handleInputOutputBaseCommand(baseSpec) {
     const [inputSpec, outputSpec] = baseSpec.split("->", 2);
 
     if (!inputSpec.trim() || !outputSpec.trim()) {
-      console.log(
+      this.log(
         "Error: Invalid input->output format. Use BASE 3->10 or BASE 3->[10,5,3]",
       );
       return;
@@ -402,7 +440,7 @@ class Calculator {
       this.inputBase = this.parseBaseSpec(inputSpec.trim());
       this.variableManager.setInputBase(this.inputBase);
     } catch (error) {
-      console.log(`Error parsing input base: ${error.message}`);
+      this.log(`Error parsing input base: ${error.message}`);
       return;
     }
 
@@ -424,7 +462,7 @@ class Calculator {
         this.outputBases = [this.parseBaseSpec(trimmedOutput)];
       }
     } catch (error) {
-      console.log(`Error parsing output base(s): ${error.message}`);
+      this.log(`Error parsing output base(s): ${error.message}`);
       return;
     }
 
@@ -435,10 +473,10 @@ class Calculator {
         return prefix ? `0${prefix} (${b.name})` : `${b.name} (base ${b.base})`;
       })
       .join(", ");
-    console.log(
+    this.log(
       `Input base: ${this.inputBase.name}${BaseSystem.getPrefixForSystem(this.inputBase) ? ` (prefix 0${BaseSystem.getPrefixForSystem(this.inputBase)})` : ` (base ${this.inputBase.base})`}`,
     );
-    console.log(
+    this.log(
       `Output base${this.outputBases.length > 1 ? "s" : ""}: ${outputBaseNames}`,
     );
   }
@@ -451,9 +489,9 @@ class Calculator {
       this.variableManager.setInputBase(base);
       const prefix = BaseSystem.getPrefixForSystem(base);
       const prefixInfo = prefix ? ` (prefix 0${prefix})` : "";
-      console.log(`Base set to ${base.name}${prefixInfo} (base ${base.base})`);
+      this.log(`Base set to ${base.name}${prefixInfo} (base ${base.base})`);
     } catch (error) {
-      console.log(`Error: ${error.message}`);
+      this.log(`Error: ${error.message}`);
     }
   }
 
@@ -489,35 +527,28 @@ class Calculator {
     if (upper === "DEC" || upper === "DECIMAL") return BaseSystem.DECIMAL;
 
     // 3. Check if it's a pure numeric base
+    // 3. Check if it's a pure numeric base
     const numericBase = parseInt(trimmed);
-    if (!isNaN(numericBase) && /^\d+$/.test(trimmed)) {
+    // If it looks like a number AND is a valid base range (2-62), treat as base ID.
+    // If it starts with 0 (e.g. 01) and length > 1, treating as char sequence takes precedence?
+    // User convention: "01" is likely binary char seq. "10" is Base 10.
+    const isNumericBaseId = !isNaN(numericBase) && /^\d+$/.test(trimmed) && numericBase >= 2 && numericBase <= 62 && !trimmed.startsWith("0");
+
+    if (isNumericBaseId) {
       if (this.customBases.has(numericBase)) {
         return this.customBases.get(numericBase);
-      }
-
-      if (numericBase < 2) {
-        throw new Error("Base must be at least 2");
-      }
-      if (numericBase > 62) {
-        throw new Error(
-          "Numeric bases must be 62 or less. Use character sequence for larger bases.",
-        );
       }
       return BaseSystem.fromBase(numericBase);
     }
 
-    // 4. Check if it's a character sequence (contains dashes or letters, but not a registered name)
-    if (trimmed.includes("-") || /[a-zA-Z]/.test(trimmed)) {
-      // If it's a single character like 't', but not a registered prefix (checked in step 1),
-      // should we treat it as a base with characters 't'? Probably not.
-      if (trimmed.length === 1) {
-        throw new Error(`Unrecognized base prefix or name: ${trimmed}`);
-      }
+    // If strictly numeric but failed above (e.g. 1, 01, 70), or non-numeric:
+    // Try as character sequence.
+    if (trimmed.length >= 2) {
       return new BaseSystem(trimmed, `Custom Base ${trimmed}`);
     }
 
     throw new Error(
-      "Invalid base specification. Use a prefix (x, b, o, d, t), a name (HEX, BIN), a number (2-62), or character sequence (0-9a-f)",
+      "Invalid base specification. Use a prefix, a number (2-62), or character sequence (min length 2)",
     );
   }
 
@@ -561,7 +592,7 @@ class Calculator {
         const targetBase = this.parseBaseSpec(baseSpec);
         this.displayResultInBase(result, targetBase);
       } catch (e) {
-        console.log(`Error: ${e.message}`);
+        this.log(`Error: ${e.message}`);
       }
     } else if (upperFormat === "BIN") {
       this.displayResultInBase(result, BaseSystem.BINARY);
@@ -581,61 +612,63 @@ class Calculator {
     if (result instanceof Integer) {
       const baseRepr = baseSystem.fromDecimal(result.value);
       if (displayPrefix) {
-        console.log(`${displayPrefix}${baseRepr}`);
+        this.log(`${displayPrefix}${baseRepr}`);
       } else {
-        console.log(`${baseRepr} (base ${baseSystem.base})`);
+        this.log(`${baseRepr} (base ${baseSystem.base})`);
       }
     } else if (result instanceof Rational) {
       const baseRepr = result.toString(baseSystem);
       if (displayPrefix) {
-        console.log(`${displayPrefix}${baseRepr}`);
+        this.log(`${displayPrefix}${baseRepr}`);
       } else {
-        console.log(`${baseRepr} (base ${baseSystem.base})`);
+        this.log(`${baseRepr} (base ${baseSystem.base})`);
       }
     } else {
-      console.log("Base conversion not supported for this result type");
+      this.log("Base conversion not supported for this result type");
     }
   }
 
   showBases() {
-    console.log("\nAvailable base systems:");
-    console.log("Standard bases:");
-    console.log("  Binary (BIN):       base 2");
-    console.log("  Octal (OCT):        base 8");
-    console.log("  Decimal (DEC):      base 10");
-    console.log("  Hexadecimal (HEX):  base 16");
-    console.log("  Base 36:            base 36");
-    console.log("  Base 62:            base 62");
-    console.log("\nBase commands:");
-    console.log("  BASE                - Show current base");
-    console.log("  BASE <n>            - Set base to n (2-62)");
-    console.log(
+    this.log("\nAvailable base systems:");
+    this.log("Standard bases:");
+    this.log("  Binary (BIN):       base b:2");
+    this.log("  Octal (OCT):        base o:8");
+    this.log("  Decimal (DEC):      base d:10");
+    this.log("  Hexadecimal (HEX):  base x:16");
+    this.log("  Base 36:            base 36");
+    this.log("  Base 62:            base 62");
+    this.log("\nBase commands:");
+    this.log("  BASE                - Show current base");
+    this.log("  BASE <n>            - Set base to n (2-62)");
+    this.log("  BASE <a:n>          - Set base to n (2-62) and prefx a (a-Z) ");
+    this.log("  BASES <a:n> ...     - Link a to n (2-62) as prefix, etc ");
+    this.log(
       "  BASE <sequence>     - Set custom base using character sequence",
     );
-    console.log(
+    this.log(
       "  BASE <in>-><out>    - Set input base <in> and output base <out>",
     );
-    console.log(
+    this.log(
       "  BASE <in>->[<out1>,<out2>,...] - Set input base and multiple output bases",
     );
-    console.log("  BIN, HEX, OCT, DEC  - Quick base shortcuts");
-    console.log("  BASES               - Show this help");
-    console.log("\nBase format commands (after expressions):");
-    console.log("  <expr> BASE <n>     - Show result in base n");
-    console.log("  <expr> BIN          - Show result in binary");
-    console.log("  <expr> HEX          - Show result in hexadecimal");
-    console.log("  <expr> OCT          - Show result in octal");
-    console.log(
+    this.log("  BIN, HEX, OCT, DEC  - Quick base shortcuts");
+    this.log("  BASES               - Show this help");
+    this.log("\nBase format commands (after expressions):");
+    this.log("  <expr> BASE <n>     - Show result in base n");
+    this.log("  <expr> BIN          - Show result in binary");
+    this.log("  <expr> HEX          - Show result in hexadecimal");
+    this.log("  <expr> OCT          - Show result in octal");
+    this.log(
       `\nInput base: ${this.inputBase.name} (base ${this.inputBase.base})`,
     );
-    console.log(
+    this.log(
       `Output base${this.outputBases.length > 1 ? "s" : ""}: ${this.outputBases.map((b) => `${b.name} (base ${b.base})`).join(", ")}`,
     );
   }
 
   displayResult(result) {
     if (result && result.type === "sequence") {
-      console.log(this.formatResult(result));
+      this.log(this.formatResult(result));
     } else if (result instanceof RationalInterval) {
       this.displayInterval(result);
     } else if (result instanceof Rational) {
@@ -643,7 +676,7 @@ class Calculator {
     } else if (result instanceof Integer) {
       this.displayInteger(result);
     } else {
-      console.log(result.toString());
+      this.log(result.toString());
     }
   }
 
@@ -706,18 +739,18 @@ class Calculator {
 
     switch (this.outputMode) {
       case "DECI":
-        console.log(`${displayDecimal}${periodInfo}${baseRepresentation}`);
+        this.log(`${displayDecimal}${periodInfo}${baseRepresentation}`);
         break;
       case "RAT":
-        console.log(`${fraction}${baseRepresentation}`);
+        this.log(`${fraction}${baseRepresentation}`);
         break;
       case "BOTH":
         if (fraction.includes("/") || fraction.includes("..")) {
-          console.log(
+          this.log(
             `${displayDecimal}${periodInfo} (${fraction})${baseRepresentation}`,
           );
         } else {
-          console.log(`${decimal}${baseRepresentation}`);
+          this.log(`${decimal}${baseRepresentation}`);
         }
         break;
       case "SCI":
@@ -726,11 +759,11 @@ class Calculator {
           this.sciPrecision,
           this.showPeriodInfo,
         );
-        console.log(`${scientificNotation} (${fraction})${baseRepresentation}`);
+        this.log(`${scientificNotation} (${fraction})${baseRepresentation}`);
         break;
       case "CF":
         const continuedFraction = rational.toContinuedFractionString();
-        console.log(`${continuedFraction} (${fraction})${baseRepresentation}`);
+        this.log(`${continuedFraction} (${fraction})${baseRepresentation}`);
         break;
     }
   }
@@ -878,25 +911,25 @@ class Calculator {
 
     switch (this.outputMode) {
       case "DECI":
-        console.log(`${lowDisplay}:${highDisplay}${periodInfo}${baseRepresentation}`);
+        this.log(`${lowDisplay}:${highDisplay}${periodInfo}${baseRepresentation}`);
         break;
       case "RAT":
-        console.log(`${lowFraction}:${highFraction}${baseRepresentation}`);
+        this.log(`${lowFraction}:${highFraction}${baseRepresentation}`);
         break;
       case "BOTH":
         const decimalRange = `${lowDisplay}:${highDisplay}${periodInfo}`;
         const rationalRange = `${lowFraction}:${highFraction}`;
         if (decimalRange !== rationalRange) {
-          console.log(`${decimalRange} (${rationalRange})${baseRepresentation}`);
+          this.log(`${decimalRange} (${rationalRange})${baseRepresentation}`);
         } else {
-          console.log(`${decimalRange}${baseRepresentation}`);
+          this.log(`${decimalRange}${baseRepresentation}`);
         }
         break;
     }
   }
 
   showHelp() {
-    console.log(`
+    this.log(`
 RatCalc Terminal
 
 BASIC ARITHMETIC:
@@ -996,22 +1029,22 @@ Press Ctrl+C to exit
     const functions = this.variableManager.getFunctions();
 
     if (variables.size === 0 && functions.size === 0) {
-      console.log("No variables or functions defined");
+      this.log("No variables or functions defined");
       return;
     }
 
     if (variables.size > 0) {
-      console.log("Variables:");
+      this.log("Variables:");
       for (const [name, value] of variables) {
-        console.log(`  ${name} = ${this.formatResult(value)}`);
+        this.log(`  ${name} = ${this.formatResult(value)}`);
       }
     }
 
     if (functions.size > 0) {
-      if (variables.size > 0) console.log("");
-      console.log("Functions:");
+      if (variables.size > 0) this.log("");
+      this.log("Functions:");
       for (const [name, func] of functions) {
-        console.log(`  ${name}[${func.params.join(",")}] = ${func.expression}`);
+        this.log(`  ${name}[${func.params.join(",")}] = ${func.expression}`);
       }
     }
   }
@@ -1071,13 +1104,23 @@ Press Ctrl+C to exit
   }
 
   start() {
-    console.log("RatCalc Terminal");
-    console.log("Type HELP for help, EXIT to quit");
-    console.log("");
+    this.log("RatCalc Terminal");
+    this.log("Type HELP for help, EXIT to quit");
+    this.log("");
     this.rl.prompt();
+  }
+
+  runCommand(input) {
+    if (input.trim()) {
+      this.processInput(input);
+    }
   }
 }
 
-// Start the calculator
-const calc = new Calculator();
-calc.start();
+// Check if running directly
+if (import.meta.main) {
+  const calc = new Calculator();
+  calc.start();
+}
+
+export { Calculator };
