@@ -383,33 +383,6 @@ class Calculator {
       return;
     }
 
-    // Check for prefix definition: BASE t:32 or BASE z:0123
-    if (baseSpec.includes(":") && !baseSpec.includes("->")) {
-      const parts = baseSpec.split(":");
-      if (parts.length === 2) {
-        const prefix = parts[0].trim();
-        const def = parts[1].trim();
-
-        if (prefix.length !== 1) {
-          console.log("Error: Prefix must be a single character");
-          return;
-        }
-
-        try {
-          const base = this.parseBaseSpec(def);
-          BaseSystem.registerPrefix(prefix, base);
-
-          this.inputBase = base;
-          this.outputBases = [base];
-          this.variableManager.setInputBase(base);
-          console.log(`Registered prefix '0${prefix}' for ${base.name}. Base set to ${base.base}.`);
-        } catch (e) {
-          console.log(`Error: ${e.message}`);
-        }
-        return;
-      }
-    }
-
     // Legacy behavior: set both input and output to same base
     this.handleLegacyBaseCommand(baseSpec);
   }
@@ -457,10 +430,13 @@ class Calculator {
 
     // Success message
     const outputBaseNames = this.outputBases
-      .map((b) => `${b.name} (base ${b.base})`)
+      .map((b) => {
+        const prefix = BaseSystem.getPrefixForSystem(b);
+        return prefix ? `0${prefix} (${b.name})` : `${b.name} (base ${b.base})`;
+      })
       .join(", ");
     console.log(
-      `Input base: ${this.inputBase.name} (base ${this.inputBase.base})`,
+      `Input base: ${this.inputBase.name}${BaseSystem.getPrefixForSystem(this.inputBase) ? ` (prefix 0${BaseSystem.getPrefixForSystem(this.inputBase)})` : ` (base ${this.inputBase.base})`}`,
     );
     console.log(
       `Output base${this.outputBases.length > 1 ? "s" : ""}: ${outputBaseNames}`,
@@ -473,16 +449,48 @@ class Calculator {
       this.inputBase = base;
       this.outputBases = [base];
       this.variableManager.setInputBase(base);
-      console.log(`Base set to ${base.name} (base ${base.base})`);
+      const prefix = BaseSystem.getPrefixForSystem(base);
+      const prefixInfo = prefix ? ` (prefix 0${prefix})` : "";
+      console.log(`Base set to ${base.name}${prefixInfo} (base ${base.base})`);
     } catch (error) {
       console.log(`Error: ${error.message}`);
     }
   }
 
   parseBaseSpec(baseSpec) {
-    // Check if it's a pure numeric base (no letters or dashes)
-    const numericBase = parseInt(baseSpec);
-    if (!isNaN(numericBase) && /^\d+$/.test(baseSpec.trim())) {
+    const trimmed = baseSpec.trim();
+
+    // Support inline prefix registration (e.g. t:32)
+    if (trimmed.includes(":") && !trimmed.startsWith("[") && !trimmed.endsWith("]")) {
+      const splitIndex = trimmed.indexOf(":");
+      const prefix = trimmed.substring(0, splitIndex).trim();
+      const def = trimmed.substring(splitIndex + 1).trim();
+
+      if (prefix.length === 1) {
+        try {
+          const base = this.parseBaseSpec(def);
+          BaseSystem.registerPrefix(prefix, base);
+          return base;
+        } catch (e) {
+          // Fall through if it's not a valid registration
+        }
+      }
+    }
+
+    // 1. Check for registered prefixes (case-insensitive)
+    const prefixSystem = BaseSystem.getSystemForPrefix(trimmed);
+    if (prefixSystem) return prefixSystem;
+
+    // 2. Check for common names (case-insensitive)
+    const upper = trimmed.toUpperCase();
+    if (upper === "HEX" || upper === "HEXADECIMAL") return BaseSystem.HEXADECIMAL;
+    if (upper === "BIN" || upper === "BINARY") return BaseSystem.BINARY;
+    if (upper === "OCT" || upper === "OCTAL") return BaseSystem.OCTAL;
+    if (upper === "DEC" || upper === "DECIMAL") return BaseSystem.DECIMAL;
+
+    // 3. Check if it's a pure numeric base
+    const numericBase = parseInt(trimmed);
+    if (!isNaN(numericBase) && /^\d+$/.test(trimmed)) {
       if (this.customBases.has(numericBase)) {
         return this.customBases.get(numericBase);
       }
@@ -498,13 +506,18 @@ class Calculator {
       return BaseSystem.fromBase(numericBase);
     }
 
-    // Check if it's a character sequence (contains dashes or letters)
-    if (baseSpec.includes("-") || /[a-zA-Z]/.test(baseSpec)) {
-      return new BaseSystem(baseSpec, `Custom Base ${baseSpec}`);
+    // 4. Check if it's a character sequence (contains dashes or letters, but not a registered name)
+    if (trimmed.includes("-") || /[a-zA-Z]/.test(trimmed)) {
+      // If it's a single character like 't', but not a registered prefix (checked in step 1),
+      // should we treat it as a base with characters 't'? Probably not.
+      if (trimmed.length === 1) {
+        throw new Error(`Unrecognized base prefix or name: ${trimmed}`);
+      }
+      return new BaseSystem(trimmed, `Custom Base ${trimmed}`);
     }
 
     throw new Error(
-      "Invalid base specification. Use a number (2-62) or character sequence with dashes (e.g., '0-9a-f')",
+      "Invalid base specification. Use a prefix (x, b, o, d, t), a name (HEX, BIN), a number (2-62), or character sequence (0-9a-f)",
     );
   }
 
@@ -544,19 +557,12 @@ class Calculator {
     } else if (upperFormat.startsWith("BASE")) {
       // Handle base format commands
       const baseSpec = upperFormat.substring(4).trim();
-      const numericBase = parseInt(baseSpec);
-
-      let targetBase;
-      if (!isNaN(numericBase) && numericBase >= 2 && numericBase <= 62) {
-        targetBase = BaseSystem.fromBase(numericBase);
-      } else if (baseSpec.includes("-")) {
-        targetBase = new BaseSystem(baseSpec);
-      } else {
-        console.log("Error: Invalid base specification for format");
-        return;
+      try {
+        const targetBase = this.parseBaseSpec(baseSpec);
+        this.displayResultInBase(result, targetBase);
+      } catch (e) {
+        console.log(`Error: ${e.message}`);
       }
-
-      this.displayResultInBase(result, targetBase);
     } else if (upperFormat === "BIN") {
       this.displayResultInBase(result, BaseSystem.BINARY);
     } else if (upperFormat === "HEX") {
@@ -569,30 +575,20 @@ class Calculator {
   }
 
   displayResultInBase(result, baseSystem) {
-    let prefix = "";
-    if (baseSystem.base === 2) prefix = "0b";
-    else if (baseSystem.base === 8) prefix = "0o";
-    else if (baseSystem.base === 16) prefix = "0x";
-
-    // For other bases, we can't easily generate a valid input prefix unless it's a registered custom base.
-    // So we'll use a display format that indicates the base but isn't necessarily directly copy-pasteable as a single token,
-    // or we could check registered prefixes.
-
-    // Check if this base system is registered with a prefix
-    // (This requires BaseSystem to expose a way to find prefix by system, or we iterate)
-    // For now, simple standard prefixes.
+    const prefix = BaseSystem.getPrefixForSystem(baseSystem);
+    const displayPrefix = prefix ? `0${prefix}` : "";
 
     if (result instanceof Integer) {
       const baseRepr = baseSystem.fromDecimal(result.value);
-      if (prefix) {
-        console.log(`${prefix}${baseRepr}`);
+      if (displayPrefix) {
+        console.log(`${displayPrefix}${baseRepr}`);
       } else {
         console.log(`${baseRepr} (base ${baseSystem.base})`);
       }
     } else if (result instanceof Rational) {
       const baseRepr = result.toString(baseSystem);
-      if (prefix) {
-        console.log(`${prefix}${baseRepr}`);
+      if (displayPrefix) {
+        console.log(`${displayPrefix}${baseRepr}`);
       } else {
         console.log(`${baseRepr} (base ${baseSystem.base})`);
       }
@@ -971,7 +967,9 @@ COMMANDS:
 BASE COMMANDS:
   BASE              Show current base system
   BASE <n>          Set base to n (2-62, e.g. BASE 16 for hex)
-  BASE <sequence>   Set custom base (e.g. BASE 0-9a-f)
+  BASE <prefix>:<n> Define prefix for base (e.g. BASE t:12)
+  BASE <in>-><out>  Set input and output bases (supports prefixes)
+  BASE <chars>      Set custom base by characters (e.g. BASE 012345)
   BIN, HEX, OCT     Quick shortcuts for binary, hex, octal
   DEC               Return to decimal (base 10)
 
