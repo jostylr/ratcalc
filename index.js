@@ -211,7 +211,7 @@ class Calculator {
 
     // Handle BASE commands (but not BASES)
     if (upperInput.startsWith("BASE") && upperInput !== "BASES") {
-      this.handleBaseCommand(upperInput);
+      this.handleBaseCommand(input);
       return;
     }
 
@@ -381,6 +381,33 @@ class Calculator {
     if (baseSpec.includes("->")) {
       this.handleInputOutputBaseCommand(baseSpec);
       return;
+    }
+
+    // Check for prefix definition: BASE t:32 or BASE z:0123
+    if (baseSpec.includes(":") && !baseSpec.includes("->")) {
+      const parts = baseSpec.split(":");
+      if (parts.length === 2) {
+        const prefix = parts[0].trim();
+        const def = parts[1].trim();
+
+        if (prefix.length !== 1) {
+          console.log("Error: Prefix must be a single character");
+          return;
+        }
+
+        try {
+          const base = this.parseBaseSpec(def);
+          BaseSystem.registerPrefix(prefix, base);
+
+          this.inputBase = base;
+          this.outputBases = [base];
+          this.variableManager.setInputBase(base);
+          console.log(`Registered prefix '0${prefix}' for ${base.name}. Base set to ${base.base}.`);
+        } catch (e) {
+          console.log(`Error: ${e.message}`);
+        }
+        return;
+      }
     }
 
     // Legacy behavior: set both input and output to same base
@@ -666,7 +693,11 @@ class Calculator {
                 : basePeriod > 0
                   ? ` {period: ${basePeriod}}`
                   : "";
-            baseReprs.push(`${formattedBaseStr}[${base.base}]${basePeriodInfo}`);
+            const prefix = BaseSystem.getPrefixForSystem(base);
+            const formattedOutput = prefix
+              ? `0${prefix}${formattedBaseStr}`
+              : `${formattedBaseStr}[${base.base}]`;
+            baseReprs.push(`${formattedOutput}${basePeriodInfo}`);
           } catch (error) {
             // Ignore conversion errors for individual bases
           }
@@ -818,20 +849,51 @@ class Calculator {
       }
     }
 
+    // Show base representations if not all decimal
+    let baseRepresentation = "";
+    if (this.outputBases.some((base) => base.base !== 10)) {
+      const baseReprs = [];
+      for (const base of this.outputBases) {
+        if (base.base !== 10) {
+          try {
+            const { baseStr: lowStr } =
+              interval.low.toRepeatingBaseWithPeriod(base);
+            const { baseStr: highStr } =
+              interval.high.toRepeatingBaseWithPeriod(base);
+
+            const lowFormatted = this.formatRepeatingExpansion(lowStr);
+            const highFormatted = this.formatRepeatingExpansion(highStr);
+
+            const prefix = BaseSystem.getPrefixForSystem(base);
+            const lowOutput = prefix ? `0${prefix}${lowFormatted}` : `${lowFormatted}[${base.base}]`;
+            const highOutput = prefix ? `0${prefix}${highFormatted}` : `${highFormatted}[${base.base}]`;
+
+            baseReprs.push(`${lowOutput}:${highOutput}`);
+          } catch (error) {
+            // Ignore conversion errors
+          }
+        }
+      }
+      if (baseReprs.length > 0) {
+        baseRepresentation = ` (${baseReprs.join(", ")})`;
+      }
+    }
+
+
     switch (this.outputMode) {
       case "DECI":
-        console.log(`${lowDisplay}:${highDisplay}${periodInfo}`);
+        console.log(`${lowDisplay}:${highDisplay}${periodInfo}${baseRepresentation}`);
         break;
       case "RAT":
-        console.log(`${lowFraction}:${highFraction}`);
+        console.log(`${lowFraction}:${highFraction}${baseRepresentation}`);
         break;
       case "BOTH":
         const decimalRange = `${lowDisplay}:${highDisplay}${periodInfo}`;
         const rationalRange = `${lowFraction}:${highFraction}`;
         if (decimalRange !== rationalRange) {
-          console.log(`${decimalRange} (${rationalRange})`);
+          console.log(`${decimalRange} (${rationalRange})${baseRepresentation}`);
         } else {
-          console.log(decimalRange);
+          console.log(`${decimalRange}${baseRepresentation}`);
         }
         break;
     }
