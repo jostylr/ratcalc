@@ -542,12 +542,33 @@ class Calculator {
   }
 
   displayResultInBase(result, baseSystem) {
+    let prefix = "";
+    if (baseSystem.base === 2) prefix = "0b";
+    else if (baseSystem.base === 8) prefix = "0o";
+    else if (baseSystem.base === 16) prefix = "0x";
+
+    // For other bases, we can't easily generate a valid input prefix unless it's a registered custom base.
+    // So we'll use a display format that indicates the base but isn't necessarily directly copy-pasteable as a single token,
+    // or we could check registered prefixes.
+
+    // Check if this base system is registered with a prefix
+    // (This requires BaseSystem to expose a way to find prefix by system, or we iterate)
+    // For now, simple standard prefixes.
+
     if (result instanceof Integer) {
       const baseRepr = baseSystem.fromDecimal(result.value);
-      console.log(`${baseRepr}[${baseSystem.base}]`);
+      if (prefix) {
+        console.log(`${prefix}${baseRepr}`);
+      } else {
+        console.log(`${baseRepr} (base ${baseSystem.base})`);
+      }
     } else if (result instanceof Rational) {
       const baseRepr = result.toString(baseSystem);
-      console.log(`${baseRepr}[${baseSystem.base}]`);
+      if (prefix) {
+        console.log(`${prefix}${baseRepr}`);
+      } else {
+        console.log(`${baseRepr} (base ${baseSystem.base})`);
+      }
     } else {
       console.log("Base conversion not supported for this result type");
     }

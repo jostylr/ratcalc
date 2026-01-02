@@ -55,8 +55,10 @@ describe("Base Input-Output Functionality", () => {
 
       // Note: Mixed preprocessing and explicit base notation has parser limitations
       // For now, test with explicit base notation only
-      const result = vm.processInput("101[2] + FF[16]");
+      const result = vm.processInput("0b101 + 0xFF");
       expect(result.type).toBe("expression");
+      // 5 + 255 = 260
+      expect(result.result.toString()).toBe("260");
       expect(result.result.toString()).toBe("260"); // 101 binary (5) + FF hex (255) = 260
     });
 
@@ -187,8 +189,10 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       // Use explicit base notation to avoid parser conflicts
-      const result = vm.processInput("101[2] + A[16] + 77[8]");
+      // 0b101 (5) + 0xA (10) + 0o77 (63) = 78
+      const result = vm.processInput("0b101 + 0xA + 0o77");
       expect(result.type).toBe("expression");
+      expect(result.result.toString()).toBe("78");
       // 101 binary (5) + A hex (10) + 77 octal (63) = 78
       expect(result.result.toString()).toBe("78");
     });
