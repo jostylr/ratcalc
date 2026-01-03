@@ -637,6 +637,7 @@ class Calculator {
     this.log("  Hexadecimal (HEX):  base x:16");
     this.log("  Base 36:            base 36");
     this.log("  Base 62:            base 62");
+    this.log("\n  Prefix 0D is reserved for the current default input base.");
     this.log("\nBase commands:");
     this.log("  BASE                - Show current base");
     this.log("  BASE <n>            - Set base to n (2-62)");
