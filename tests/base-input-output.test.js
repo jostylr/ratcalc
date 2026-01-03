@@ -105,14 +105,12 @@ describe("Base Input-Output Functionality", () => {
       expect(callResult.result.toString()).toBe("8"); // F(5) = 5 + 3 = 8
     });
 
-    it("should skip conversion for decimals in non-decimal bases", () => {
+    it("should error on decimals in non-decimal bases", () => {
       const vm = new VariableManager();
       vm.setInputBase(BaseSystem.BINARY);
 
       // For now, decimal numbers are not converted from input base
-      const result = vm.processInput("1.5");
-      expect(result.type).toBe("expression");
-      expect(result.result.toString()).toBe("3/2"); // 1.5 treated as decimal
+      expect(vm.processInput("1.5").type).toBe("error");
     });
 
     it("should handle invalid digits gracefully", () => {
