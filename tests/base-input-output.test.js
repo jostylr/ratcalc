@@ -97,7 +97,7 @@ describe("Base Input-Output Functionality", () => {
       const vm = new VariableManager();
       vm.setInputBase(BaseSystem.BINARY);
 
-      const funcResult = vm.processInput("F[x] = x + 11");
+      const funcResult = vm.processInput("F(x) -> x + 11");
       expect(funcResult.type).toBe("function");
 
       const callResult = vm.processInput("F(101)");

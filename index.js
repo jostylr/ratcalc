@@ -974,8 +974,8 @@ CONCATENATION RULES:
   Invalid: 1.2[3.4,5.6] (double decimal points)
 
 VARIABLES & FUNCTIONS:
-  x = 5             Assign value to single-letter variable
-  P[x,y] = x^2 - y  Define function with parameters
+  x = 5             Assign value (uppercase names reserved for functions)
+  P(x,y) -> x^2 - y Define function (using -> syntax)
   P(3,4)            Call function with arguments
   SUM[i](i^2,1,10)  Sum expression from i=1 to 10
   PROD[j](j,1,5)    Product expression from j=1 to 5
