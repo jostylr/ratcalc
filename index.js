@@ -10,6 +10,9 @@
 import { Rational, RationalInterval, Integer, BaseSystem } from "@ratmath/core";
 import { VariableManager } from "@ratmath/algebra";
 import { createInterface } from "readline";
+import { readFileSync, existsSync } from "fs";
+import { resolve, dirname, join } from "path";
+
 
 class Calculator {
   constructor(logger = console.log) {
@@ -120,10 +123,21 @@ class Calculator {
     // Handle special commands
     const upperInput = input.toUpperCase();
 
-    if (upperInput === "HELP") {
-      this.showHelp();
+    if (upperInput === "HELP" || upperInput.startsWith("HELP ")) {
+      this.handleHelpCommand(input);
       return;
     }
+
+    if (upperInput.startsWith("LOAD ")) {
+      this.handleLoadCommand(input.substring(5).trim());
+      return;
+    }
+
+    if (upperInput.startsWith("UNLOAD ")) {
+      this.handleUnloadCommand(input.substring(7).trim());
+      return;
+    }
+
 
 
     if (upperInput === "DECI") {
@@ -495,6 +509,109 @@ class Calculator {
     }
   }
 
+  handleHelpCommand(input) {
+    const args = input.trim().split(/\s+/);
+    if (args.length > 1) {
+      // HELP <Topic>
+      const topic = args[1];
+      this.log(this.variableManager.getHelp(topic));
+    } else {
+      this.showHelp();
+    }
+  }
+
+  async handleLoadCommand(moduleInput) {
+    try {
+      let moduleName = "";
+      let filePath = moduleInput;
+
+      // Parse @@Module notation
+      if (moduleInput.startsWith("@@")) {
+        const name = moduleInput.substring(2).replace(/@$/, "");
+        moduleName = name;
+        // Look for file in current directory
+        // Support .js and .rat extension defaults
+        if (existsSync(`${name}.rat`)) filePath = `${name}.rat`;
+        else if (existsSync(`${name}.js`)) filePath = `${name}.js`;
+        else {
+          this.log(`Error: Could not find file for module @@${moduleName} (checked ${name}.rat, ${name}.js)`);
+          return;
+        }
+      } else {
+        // File path provided
+        if (!existsSync(filePath)) {
+          this.log(`Error: File '${filePath}' not found`);
+          return;
+        }
+        const basename = filePath.split(/[/\\]/).pop().split('.')[0];
+        // Module name from filename, Capitalized
+        moduleName = basename.charAt(0).toUpperCase() + basename.slice(1);
+      }
+
+      const resolvedPath = resolve(filePath);
+
+      if (resolvedPath.endsWith(".js")) {
+        // JS Module Loading
+        try {
+          // Use dynamic import
+          const mod = await import(resolvedPath);
+          // Expect export const functions = {...}, variables = {...}
+          // OR default export with that structure.
+          const scope = mod.default || mod;
+          if (!scope.functions && !scope.variables) {
+            this.log(`Warning: JS Module '${moduleName}' does not seem to export 'functions' or 'variables'.`);
+          }
+          const result = this.variableManager.loadModule(moduleName, scope);
+          this.log(result);
+        } catch (e) {
+          this.log(`Error loading JS module: ${e.message}`);
+        }
+      } else {
+        // RatMath Script Loading
+        const content = readFileSync(resolvedPath, "utf-8");
+        const tempVM = new VariableManager();
+        // Copy base configuration to parse correctly
+        tempVM.setCustomBases(this.customBases);
+        tempVM.setInputBase(this.inputBase);
+
+        const lines = content.split('\n');
+        let vars = {};
+        let funcs = {};
+
+        for (const line of lines) {
+          if (!line.trim() || line.trim().startsWith("#") || line.trim().startsWith("//")) continue;
+          try {
+            const res = tempVM.processInput(line);
+            if (res.type === 'error') {
+              this.log(`Warning: Error in module script '${line.trim()}': ${res.message}`);
+            }
+          } catch (e) { }
+        }
+
+        // Extract definitions
+        // We need to access maps directly or via getters
+        const modScope = {
+          functions: Object.fromEntries(tempVM.getFunctions()),
+          variables: Object.fromEntries(tempVM.getVariables())
+        };
+
+        const result = this.variableManager.loadModule(moduleName, modScope);
+        this.log(result);
+      }
+
+    } catch (error) {
+      this.log(`Error handling LOAD command: ${error.message}`);
+    }
+  }
+
+  handleUnloadCommand(moduleName) {
+    if (moduleName.startsWith("@@")) {
+      moduleName = moduleName.substring(2).replace(/@$/, "");
+    }
+    this.log(this.variableManager.unloadModule(moduleName));
+  }
+
+
   parseBaseSpec(baseSpec) {
     const trimmed = baseSpec.trim();
 
@@ -665,6 +782,7 @@ class Calculator {
     this.log(
       `Output base${this.outputBases.length > 1 ? "s" : ""}: ${this.outputBases.map((b) => `${b.name} (base ${b.base})`).join(", ")}`,
     );
+    this.log("\nType 'HELP <command>' or 'HELP <function>' for more info.");
   }
 
   displayResult(result) {
@@ -984,6 +1102,11 @@ VARIABLES & FUNCTIONS:
 
 COMMANDS:
   HELP              Show this help
+
+  HELP <Topic>      Show specific help for function/topic
+  LOAD <file>       Load a module from file / JS
+  LOAD @@Module     Load module from default name
+  UNLOAD @@Module   Unload a module
   VARS              Show defined variables and functions
   BASES             Show available base systems
   DECI              Show results as decimals only
@@ -1104,10 +1227,31 @@ Press Ctrl+C to exit
     return `${low}:${high}`;
   }
 
-  start() {
+  async start() {
     this.log("RatCalc Terminal");
     this.log("Type HELP for help, EXIT to quit");
     this.log("");
+
+    // Check for config file in current directory
+    if (existsSync("ratmath.config.rat")) {
+      this.log("Loading configuration from ratmath.config.rat...");
+      await this.handleLoadCommand("ratmath.config.rat");
+    } else if (existsSync("ratmath.config.js")) {
+      this.log("Loading configuration from ratmath.config.js...");
+      await this.handleLoadCommand("ratmath.config.js");
+    }
+
+    // Check CLI args for --load
+    // argv[0] is bun, argv[1] is script/file
+    const args = process.argv.slice(2);
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--load' && args[i + 1]) {
+        const file = args[i + 1];
+        await this.handleLoadCommand(file);
+        i++;
+      }
+    }
+
     this.rl.prompt();
   }
 
