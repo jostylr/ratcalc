@@ -12,6 +12,8 @@ import { VariableManager } from "@ratmath/algebra";
 import { createInterface } from "readline";
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
+// Import Reals module wrapper directly from source
+import * as RealsModule from "@ratmath/reals/src/ratmath-module.js";
 
 
 class Calculator {
@@ -23,6 +25,10 @@ class Calculator {
     this.sciPrecision = 10; // Scientific notation precision (significant digits)
     this.showPeriodInfo = false; // Whether to show period info in scientific notation
     this.variableManager = new VariableManager(); // Variable and function management
+
+    // Load Reals Module by default
+    this.variableManager.loadModule("Reals", RealsModule);
+
     this.shouldInterrupt = false; // Flag for computation interruption
     this.inputBase = BaseSystem.DECIMAL; // Base system for parsing input
     this.outputBases = [BaseSystem.DECIMAL]; // Array of base systems for displaying output
