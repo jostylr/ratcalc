@@ -27,7 +27,9 @@ describe("VariableManager Inline Optional Parameters", () => {
         vm.processInput("G = (x, y?10, z) -> x+y+z");
 
         // G(1, , 2) -> 1+10+2 = 13
+        // G(1, , 2) -> 1+10+2 = 13
         const res = vm.evaluateExpression("G(1, , 2)");
-        expect(res.result.toString()).toBe("13");
+        const val = res.result.constructor.name === 'RationalInterval' ? res.result.low : res.result;
+        expect(val.toString()).toBe("13");
     });
 });

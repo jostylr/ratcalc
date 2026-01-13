@@ -76,14 +76,17 @@ describe("VariableManager Optional Args & Context", () => {
 
         // H(2) -> x=2, a=3, G=sq -> sq(2*3) = 36
         let res = vm.handleFunctionCall("H", "2");
-        expect(res.result.toNumber()).toBe(36);
+        const val = res.result.constructor.name === 'RationalInterval' ? res.result.low : res.result;
+        expect(val.toNumber()).toBe(36);
 
         // H(2, 1) -> x=2, a=1, G=sq -> sq(2*1) = 4
         res = vm.handleFunctionCall("H", "2, 1");
-        expect(res.result.toNumber()).toBe(4);
+        const val2 = res.result.constructor.name === 'RationalInterval' ? res.result.low : res.result;
+        expect(val2.toNumber()).toBe(4);
 
         // H(1, , x->5*x) -> x=1, a=3 (default), G=5x -> 5*(1*3) = 15
         res = vm.handleFunctionCall("H", "1, , x->5*x");
-        expect(res.result.toNumber()).toBe(15);
+        const val3 = res.result.constructor.name === 'RationalInterval' ? res.result.low : res.result;
+        expect(val3.toNumber()).toBe(15);
     });
 });

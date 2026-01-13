@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 // Import Reals module wrapper directly from source
 import * as RealsModule from "@ratmath/reals/src/ratmath-module.js";
+import { registerStdLib } from "@ratmath/stdlib";
 
 
 class Calculator {
@@ -34,6 +35,10 @@ class Calculator {
     this.outputBases = [BaseSystem.DECIMAL]; // Array of base systems for displaying output
     this.customBases = new Map(); // Custom base definitions [n] = character_sequence
     this.variableManager.setCustomBases(this.customBases);
+
+    // Register Standard Library
+    registerStdLib(this.variableManager);
+
     this.rl = createInterface({
       input: process.stdin,
       output: process.stdout,
