@@ -8,13 +8,16 @@
  */
 
 import { Rational, RationalInterval, Integer, BaseSystem } from "@ratmath/core";
-import { VariableManager } from "@ratmath/algebra";
+import { VariableManager, PackageRegistry, getPackageInfo, resolveDependencies } from "@ratmath/algebra";
 import { createInterface } from "readline";
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
-// Import Reals module wrapper directly from source
-import * as RealsModule from "@ratmath/reals/src/ratmath-module.js";
 import { registerStdLib } from "@ratmath/stdlib";
+
+// Package module loaders - lazy loaded when needed
+const PackageLoaders = {
+    reals: () => import("@ratmath/reals/src/ratmath-module.js"),
+};
 
 
 class Calculator {
@@ -26,9 +29,6 @@ class Calculator {
     this.sciPrecision = 10; // Scientific notation precision (significant digits)
     this.showPeriodInfo = false; // Whether to show period info in scientific notation
     this.variableManager = new VariableManager(); // Variable and function management
-
-    // Load Reals Module by default
-    this.variableManager.loadModule("Reals", RealsModule);
 
     this.shouldInterrupt = false; // Flag for computation interruption
     this.inputBase = BaseSystem.DECIMAL; // Base system for parsing input
@@ -532,6 +532,70 @@ class Calculator {
   }
 
   async handleLoadCommand(moduleInput) {
+    // Split input to support multiple packages: LOAD reals units stats
+    const parts = moduleInput.trim().split(/\s+/);
+    
+    // Collect packages to load from registry
+    const registryPackages = [];
+    const fileModules = [];
+    
+    for (const part of parts) {
+      // Check if it's a registered package name
+      const pkgInfo = getPackageInfo(part);
+      if (pkgInfo) {
+        registryPackages.push(part.toLowerCase());
+      } else if (part.startsWith("@@") || existsSync(part) || existsSync(`${part}.rat`) || existsSync(`${part}.js`)) {
+        fileModules.push(part);
+      } else {
+        this.log(`Unknown package or file: '${part}'. Type HELP packages to see available packages.`);
+      }
+    }
+    
+    // Resolve dependencies for registry packages
+    if (registryPackages.length > 0) {
+      const toLoad = resolveDependencies(registryPackages, this.variableManager.getLoadedPackages());
+      
+      for (const pkgName of toLoad) {
+        await this.loadRegistryPackage(pkgName);
+      }
+    }
+    
+    // Load file-based modules
+    for (const fileModule of fileModules) {
+      await this.loadFileModule(fileModule);
+    }
+  }
+  
+  async loadRegistryPackage(packageName) {
+    const pkgInfo = getPackageInfo(packageName);
+    if (!pkgInfo) {
+      this.log(`Package '${packageName}' not found in registry.`);
+      return;
+    }
+    
+    if (this.variableManager.isPackageLoaded(packageName)) {
+      this.log(`Package '${pkgInfo.name}' is already loaded.`);
+      return;
+    }
+    
+    // Check if we have a loader for this package
+    if (PackageLoaders[packageName]) {
+      try {
+        const mod = await PackageLoaders[packageName]();
+        const scope = mod.default || mod;
+        const result = this.variableManager.loadModule(pkgInfo.name, scope);
+        this.variableManager.markPackageLoaded(packageName);
+        this.log(result);
+      } catch (e) {
+        this.log(`Error loading package '${pkgInfo.name}': ${e.message}`);
+      }
+    } else {
+      // Package is in registry but no loader available (stub/future package)
+      this.log(`Package '${pkgInfo.name}' is not yet implemented.`);
+    }
+  }
+  
+  async loadFileModule(moduleInput) {
     try {
       let moduleName = "";
       let filePath = moduleInput;
@@ -541,7 +605,6 @@ class Calculator {
         const name = moduleInput.substring(2).replace(/@$/, "");
         moduleName = name;
         // Look for file in current directory
-        // Support .js and .rat extension defaults
         if (existsSync(`${name}.rat`)) filePath = `${name}.rat`;
         else if (existsSync(`${name}.js`)) filePath = `${name}.js`;
         else {
@@ -555,19 +618,14 @@ class Calculator {
           return;
         }
         const basename = filePath.split(/[/\\]/).pop().split('.')[0];
-        // Module name from filename, Capitalized
         moduleName = basename.charAt(0).toUpperCase() + basename.slice(1);
       }
 
       const resolvedPath = resolve(filePath);
 
       if (resolvedPath.endsWith(".js")) {
-        // JS Module Loading
         try {
-          // Use dynamic import
           const mod = await import(resolvedPath);
-          // Expect export const functions = {...}, variables = {...}
-          // OR default export with that structure.
           const scope = mod.default || mod;
           if (!scope.functions && !scope.variables) {
             this.log(`Warning: JS Module '${moduleName}' does not seem to export 'functions' or 'variables'.`);
@@ -581,14 +639,10 @@ class Calculator {
         // RatMath Script Loading
         const content = readFileSync(resolvedPath, "utf-8");
         const tempVM = new VariableManager();
-        // Copy base configuration to parse correctly
         tempVM.setCustomBases(this.customBases);
         tempVM.setInputBase(this.inputBase);
 
         const lines = content.split('\n');
-        let vars = {};
-        let funcs = {};
-
         for (const line of lines) {
           if (!line.trim() || line.trim().startsWith("#") || line.trim().startsWith("//")) continue;
           try {
@@ -599,8 +653,6 @@ class Calculator {
           } catch (e) { }
         }
 
-        // Extract definitions
-        // We need to access maps directly or via getters
         const modScope = {
           functions: Object.fromEntries(tempVM.getFunctions()),
           variables: Object.fromEntries(tempVM.getVariables())
@@ -609,7 +661,6 @@ class Calculator {
         const result = this.variableManager.loadModule(moduleName, modScope);
         this.log(result);
       }
-
     } catch (error) {
       this.log(`Error handling LOAD command: ${error.message}`);
     }
@@ -1113,11 +1164,12 @@ VARIABLES & FUNCTIONS:
 
 COMMANDS:
   HELP              Show this help
-
-  HELP <Topic>      Show specific help for function/topic
-  LOAD <file>       Load a module from file / JS
-  LOAD @@Module     Load module from default name
-  UNLOAD @@Module   Unload a module
+  HELP <topic>      Show help for function or package
+  HELP packages     List available packages
+  LOAD <package>    Load a package (e.g., LOAD reals)
+  LOAD <p1> <p2>    Load multiple packages at once
+  LOAD <file>       Load a module from file (.rat or .js)
+  UNLOAD <module>   Unload a module
   VARS              Show defined variables and functions
   BASES             Show available base systems
   DECI              Show results as decimals only
