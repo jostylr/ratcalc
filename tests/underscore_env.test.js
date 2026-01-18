@@ -8,10 +8,11 @@ describe("Underscore Environment Variables", () => {
     it("should allow variables starting with underscore", () => {
         const vm = new VariableManager();
         vm.processInput("_myVar = 42");
-        expect(vm.variables.get("_myVar").toString()).toBe("42");
+        // Variables are normalized: _myVar -> _myvar
+        expect(vm.getVariable("_myVar").toString()).toBe("42");
 
         vm.processInput("_debug = 1");
-        expect(vm.variables.get("_debug").toString()).toBe("1");
+        expect(vm.getVariable("_debug").toString()).toBe("1");
     });
 
     it("should allow using underscore variables in expressions", () => {
@@ -36,32 +37,19 @@ describe("Underscore Environment Variables", () => {
         // But we can verify that the variable is set and accessible.
 
         vm.processInput("_precision = -2");
-        expect(vm.variables.has("_precision")).toBe(true);
-        expect(vm.variables.get("_precision").toString()).toBe("-2");
+        expect(vm.hasVariable("_precision")).toBe(true);
+        expect(vm.getVariable("_precision").toString()).toBe("-2");
     });
 
     it("Reals module wrapper should prefer _precision over PRECISION", () => {
-        // Mock context
-        const context = {
-            variables: new Map()
-        };
-
-        // Access the helper indirectly via a function body if possible, 
-        // or we can test the logic if we export getPrecision? We don't export it.
-        // We'll test via one of the functions, e.g. PI which just returns PI(prec).
-
-        // We'll trust the manual verification or unit test approach.
-        // Since we can't easily inspect the 'prec' passed to Reals.PI without mocking Reals.PI...
-        // We will just verify that the setup allows defining _precision.
-
         const vm = new VariableManager();
         // PRECISION is not a valid user variable name (uppercase reserved for functions)
-        // Set it directly to simulate system-level env var
+        // Set it directly to simulate system-level env var (using normalized name)
         vm.variables.set("PRECISION", "-5");
 
         vm.processInput("_precision = -2");
 
         expect(vm.variables.get("PRECISION")).toBe("-5");
-        expect(vm.variables.get("_precision").toString()).toBe("-2");
+        expect(vm.getVariable("_precision").toString()).toBe("-2");
     });
 });

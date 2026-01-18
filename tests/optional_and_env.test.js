@@ -13,7 +13,8 @@ describe("VariableManager Optional Args & Context", () => {
     test("should handle optional arguments", () => {
         let capturedArg = "NONE";
 
-        vm.functions.set("OptFunc", {
+        // Use setFunction for proper normalization (OptFunc -> OPTFUNC)
+        vm.setFunction("OptFunc", {
             type: 'js',
             params: ["req", "opt?"],
             handler: function (req, opt) {
@@ -22,7 +23,7 @@ describe("VariableManager Optional Args & Context", () => {
             }
         });
 
-        // Call with 1 arg (min)
+        // Call with 1 arg (min) - handleFunctionCall normalizes the name
         vm.handleFunctionCall("OptFunc", "10");
         expect(capturedArg).toBeUndefined();
 
@@ -36,14 +37,17 @@ describe("VariableManager Optional Args & Context", () => {
     });
 
     test("should allow access to environment variables via 'this'", () => {
-        vm.variables.set("ENV_VAR", new Rational(999));
+        // Use normalized name for direct Map access
+        vm.variables.set("env_var", new Rational(999));
 
-        vm.functions.set("ContextFunc", {
+        vm.setFunction("ContextFunc", {
             type: 'js',
             params: ["x"],
             handler: function (x) {
-                if (this && this.variables && this.variables.has("ENV_VAR")) {
-                    return this.variables.get("ENV_VAR");
+                // Use getVariable helper for normalized access
+                const val = this.getVariable("env_var");
+                if (val) {
+                    return val;
                 }
                 return new Rational(0);
             }
