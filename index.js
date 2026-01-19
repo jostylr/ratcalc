@@ -848,7 +848,10 @@ class Calculator {
   }
 
   displayResult(result) {
-    if (result && result.type === "sequence") {
+    if (result && result.type === "string") {
+      // Display strings directly, respecting newlines
+      this.log(result.value);
+    } else if (result && result.type === "sequence") {
       this.log(this.formatResult(result));
     } else if (result instanceof RationalInterval) {
       this.displayInterval(result);
