@@ -17,7 +17,7 @@ import { registerStdLib } from "@ratmath/stdlib";
 // Package module loaders - lazy loaded when needed
 const PackageLoaders = {
     reals: () => import("@ratmath/reals/src/ratmath-module.js"),
-    oracles: () => import("@ratmath/oracles/src/ratmath-module.js"),
+    oracles: () => import("@ratmath/oracles/src/ratmath-module.ts"),
 };
 
 
@@ -849,6 +849,19 @@ class Calculator {
   }
 
   displayResult(result) {
+    // Handle Promises (async results from oracles, etc.)
+    if (result && typeof result.then === 'function') {
+      this.log("Computing...");
+      result.then((resolved) => {
+        this.displayResult(resolved);
+        this.rl.prompt();
+      }).catch((error) => {
+        this.handleError(error);
+        this.rl.prompt();
+      });
+      return;
+    }
+
     if (result && result.type === "string") {
       // Display strings directly, respecting newlines
       this.log(result.value);
@@ -860,6 +873,9 @@ class Calculator {
       this.displayRational(result);
     } else if (result instanceof Integer) {
       this.displayInteger(result);
+    } else if (result && typeof result === 'function' && result.yes) {
+      // Oracle - display its yes interval
+      this.log(`[Oracle] yes: ${result.yes.toString()}`);
     } else {
       this.log(result.toString());
     }
