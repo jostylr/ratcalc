@@ -17,6 +17,7 @@ import { registerStdLib } from "@ratmath/stdlib";
 // Package module loaders - lazy loaded when needed
 const PackageLoaders = {
     reals: () => import("@ratmath/reals/src/ratmath-module.js"),
+    oracles: () => import("@ratmath/oracles/src/ratmath-module.js"),
 };
 
 
