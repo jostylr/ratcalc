@@ -206,4 +206,91 @@ describe("Calc: Oracles Integration", () => {
         expect(log).not.toContain("Error");
         expect(log).toContain("Oracle");
     });
+
+    // Tests for Ask function - verifying oracle Yes/No responses
+    test("Ask returns 1 (Yes) when oracle value is in interval", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        // Oracle(5) represents exactly 5, asking if it's in [4, 6] should be Yes
+        calc.runCommand("o = Oracle(5)");
+        calc.clearLogs();
+        
+        // Ask if 5 is in the interval 4:6
+        const result = calc.variableManager.evaluateExpression("Ask(o, 4:6)");
+        // Result should be a Promise
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const answer = await result.result;
+        expect(answer).toBe(1); // Yes
+    });
+
+    test("Ask returns 0 (No) when oracle value is outside interval", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        // Oracle(5) represents exactly 5, asking if it's in [10, 20] should be No
+        calc.runCommand("o = Oracle(5)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Ask(o, 10:20)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const answer = await result.result;
+        expect(answer).toBe(0); // No
+    });
+
+    test("Ask with Sqrt(2) - should be Yes for interval containing sqrt(2)", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        // Sqrt(2) ≈ 1.414..., asking if it's in [1, 2] should be Yes
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Ask(s, 1:2)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const answer = await result.result;
+        expect(answer).toBe(1); // Yes - sqrt(2) is in [1, 2]
+    });
+
+    test("Ask with Sqrt(2) - should be No for interval not containing sqrt(2)", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        // Sqrt(2) ≈ 1.414..., asking if it's in [2, 3] should be No
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Ask(s, 2:3)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const answer = await result.result;
+        expect(answer).toBe(0); // No - sqrt(2) is not in [2, 3]
+    });
+
+    test("Narrow function returns refined interval", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        // Narrow Sqrt(2) should return a refined RationalInterval
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Narrow(s)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const interval = await result.result;
+        // The narrowed interval should contain sqrt(2) ≈ 1.414...
+        expect(interval).toBeDefined();
+        // Check it's a RationalInterval with low and high
+        expect(interval.low).toBeDefined();
+        expect(interval.high).toBeDefined();
+    });
 });
