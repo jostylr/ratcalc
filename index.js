@@ -18,6 +18,7 @@ import { registerStdLib } from "@ratmath/stdlib";
 const PackageLoaders = {
     reals: () => import("@ratmath/reals/src/ratmath-module.js"),
     oracles: () => import("@ratmath/oracles/src/ratmath-module.ts"),
+    "arith-funs": () => import("@ratmath/arith-funs/src/ratmath-module.js"),
 };
 
 
@@ -51,8 +52,8 @@ class Calculator {
   }
 
   setupReadline() {
-    this.rl.on("line", (input) => {
-      this.processInput(input.trim());
+    this.rl.on("line", async (input) => {
+      await this.processInput(input.trim());
       this.rl.prompt();
     });
 
@@ -100,7 +101,7 @@ class Calculator {
     );
   }
 
-  processInput(input) {
+  async processInput(input) {
     if (!input) return;
 
     // Reset interrupt flag for new computation
@@ -141,7 +142,7 @@ class Calculator {
     }
 
     if (upperInput.startsWith("LOAD ")) {
-      this.handleLoadCommand(input.substring(5).trim());
+      await this.handleLoadCommand(input.substring(5).trim());
       return;
     }
 
@@ -338,6 +339,19 @@ class Calculator {
 
     if (varResult.type === "error") {
       this.log(varResult.message);
+    } else if (varResult.type === "async_assignment") {
+      // Handle async assignment (e.g., d = Estimate(...))
+      this.log("Computing...");
+      varResult.promise.then((resolved) => {
+        varResult.variableManager.variables.set(varResult.varName, resolved);
+        const formatted = varResult.variableManager.formatValue(resolved);
+        this.log(`${varResult.varName} = ${formatted}`);
+        this.rl.prompt();
+      }).catch((error) => {
+        this.handleError(error);
+        this.rl.prompt();
+      });
+      return; // Don't prompt yet - will prompt after async completes
     } else if (
       varResult.type === "assignment" ||
       varResult.type === "function"
@@ -1338,9 +1352,9 @@ Press Ctrl+C to exit
     this.rl.prompt();
   }
 
-  runCommand(input) {
+  async runCommand(input) {
     if (input.trim()) {
-      this.processInput(input);
+      await this.processInput(input);
     }
   }
 }

@@ -294,7 +294,7 @@ describe("Calc: Oracles Integration", () => {
         expect(interval.high).toBeDefined();
     });
 
-    test("Estimate returns decimal string", async () => {
+    test("Estimate returns terminating decimal (power of 10 denominator)", async () => {
         await calc.runCommandAsync("LOAD oracles");
         calc.clearLogs();
         
@@ -306,10 +306,54 @@ describe("Calc: Oracles Integration", () => {
         expect(typeof result.result.then).toBe('function');
         
         const estimate = await result.result;
-        // Should return a string object
-        expect(estimate.type).toBe('string');
+        // Should return a Rational (terminating decimal)
+        expect(estimate.numerator).toBeDefined();
+        expect(estimate.denominator).toBeDefined();
         // Value should be close to sqrt(2) ≈ 1.414
-        const numVal = parseFloat(estimate.value);
+        const numVal = Number(estimate.numerator) / Number(estimate.denominator);
+        expect(numVal).toBeGreaterThan(1.4);
+        expect(numVal).toBeLessThan(1.5);
+        // Denominator should only have factors of 2 and 5 (terminating decimal)
+        let d = estimate.denominator;
+        while (d % 2n === 0n) d = d / 2n;
+        while (d % 5n === 0n) d = d / 5n;
+        expect(d).toBe(1n);
+    });
+
+    test("Midpoint returns exact midpoint as Rational", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Midpoint(s)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const midpoint = await result.result;
+        expect(midpoint.numerator).toBeDefined();
+        expect(midpoint.denominator).toBeDefined();
+        const numVal = Number(midpoint.numerator) / Number(midpoint.denominator);
+        expect(numVal).toBeGreaterThan(1.4);
+        expect(numVal).toBeLessThan(1.5);
+    });
+
+    test("Mediant returns simplest Farey fraction in interval", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Mediant(s)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const mediant = await result.result;
+        expect(mediant.numerator).toBeDefined();
+        expect(mediant.denominator).toBeDefined();
+        const numVal = Number(mediant.numerator) / Number(mediant.denominator);
         expect(numVal).toBeGreaterThan(1.4);
         expect(numVal).toBeLessThan(1.5);
     });
@@ -327,11 +371,17 @@ describe("Calc: Oracles Integration", () => {
         expect(typeof result.result.then).toBe('function');
         
         const estimate = await result.result;
-        expect(estimate.type).toBe('string');
+        // Should return a Rational (terminating decimal)
+        expect(estimate.numerator).toBeDefined();
         // With higher precision, value should be closer to sqrt(2)
-        const numVal = parseFloat(estimate.value);
+        const numVal = Number(estimate.numerator) / Number(estimate.denominator);
         expect(numVal).toBeGreaterThan(1.41421);
         expect(numVal).toBeLessThan(1.41422);
+        // Denominator should only have factors of 2 and 5 (terminating decimal)
+        let d = estimate.denominator;
+        while (d % 2n === 0n) d = d / 2n;
+        while (d % 5n === 0n) d = d / 5n;
+        expect(d).toBe(1n);
     });
 
     test("Oracle arithmetic with variable: c+c", async () => {
@@ -360,5 +410,32 @@ describe("Calc: Oracles Integration", () => {
         const log = calc.getLastLog();
         expect(log).not.toContain("Error");
         expect(log).toContain("Oracle");
+    });
+
+    test("Async assignment: d = Estimate(...) stores resolved value", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        // Test that async assignment returns the right type
+        const result = calc.variableManager.handleAssignment("d", "Estimate(s)");
+        expect(result.type).toBe("async_assignment");
+        expect(result.varName).toBe("d"); // lowercase variable name
+        expect(typeof result.promise.then).toBe("function");
+        
+        // Await and verify the resolved value is a Rational (terminating decimal)
+        const resolved = await result.promise;
+        expect(resolved.numerator).toBeDefined();
+        expect(resolved.denominator).toBeDefined();
+        const numVal = Number(resolved.numerator) / Number(resolved.denominator);
+        expect(numVal).toBeGreaterThan(1.4);
+        expect(numVal).toBeLessThan(1.5);
+        // Denominator should only have factors of 2 and 5 (terminating decimal)
+        let d = resolved.denominator;
+        while (d % 2n === 0n) d = d / 2n;
+        while (d % 5n === 0n) d = d / 5n;
+        expect(d).toBe(1n);
     });
 });
