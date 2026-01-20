@@ -293,4 +293,72 @@ describe("Calc: Oracles Integration", () => {
         expect(interval.low).toBeDefined();
         expect(interval.high).toBeDefined();
     });
+
+    test("Estimate returns decimal string", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        const result = calc.variableManager.evaluateExpression("Estimate(s)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const estimate = await result.result;
+        // Should return a string object
+        expect(estimate.type).toBe('string');
+        // Value should be close to sqrt(2) ≈ 1.414
+        const numVal = parseFloat(estimate.value);
+        expect(numVal).toBeGreaterThan(1.4);
+        expect(numVal).toBeLessThan(1.5);
+    });
+
+    test("Estimate with custom precision", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("s = Sqrt(2)");
+        calc.clearLogs();
+        
+        // Estimate with precision 1/1000000 (0.000001)
+        const result = calc.variableManager.evaluateExpression("Estimate(s, 1/1000000)");
+        expect(result.result).toBeDefined();
+        expect(typeof result.result.then).toBe('function');
+        
+        const estimate = await result.result;
+        expect(estimate.type).toBe('string');
+        // With higher precision, value should be closer to sqrt(2)
+        const numVal = parseFloat(estimate.value);
+        expect(numVal).toBeGreaterThan(1.41421);
+        expect(numVal).toBeLessThan(1.41422);
+    });
+
+    test("Oracle arithmetic with variable: c+c", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("c = Sqrt(2)");
+        calc.clearLogs();
+        
+        // c+c should work (was giving "intermediateExpr is not defined" error)
+        calc.runCommand("c+c");
+        const log = calc.getLastLog();
+        expect(log).not.toContain("not defined");
+        expect(log).not.toContain("Error");
+    });
+
+    test("Oracle arithmetic: oracle + rational", async () => {
+        await calc.runCommandAsync("LOAD oracles");
+        calc.clearLogs();
+        
+        calc.runCommand("c = Sqrt(2)");
+        calc.clearLogs();
+        
+        // Adding oracle to number should work
+        calc.runCommand("OracleAdd(c, 1)");
+        const log = calc.getLastLog();
+        expect(log).not.toContain("Error");
+        expect(log).toContain("Oracle");
+    });
 });
