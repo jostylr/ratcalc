@@ -202,7 +202,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("101");
-      expect(preprocessed).toBe("0d5"); // 101 binary = 5 decimal
+      expect(preprocessed).toBe("0z[10]5"); // 101 binary = 5 decimal
     });
 
     it("should not convert numbers with explicit base notation", () => {
@@ -218,7 +218,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("101 + 11 - 1");
-      expect(preprocessed).toBe("0d5 + 0d3 - 0d1"); // All numbers converted
+      expect(preprocessed).toBe("0z[10]5 + 0z[10]3 - 0z[10]1"); // All numbers converted
     });
 
     it("should preserve operators and parentheses", () => {
@@ -226,7 +226,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("(101 * 11) / 10");
-      expect(preprocessed).toBe("(0d5 * 0d3) / 0d2"); // Numbers converted, structure preserved
+      expect(preprocessed).toBe("(0z[10]5 * 0z[10]3) / 0z[10]2"); // Numbers converted, structure preserved
     });
 
     it("should handle negative numbers", () => {
@@ -234,7 +234,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("-101 + 11");
-      expect(preprocessed).toBe("-0d5 + 0d3"); // Negative numbers handled
+      expect(preprocessed).toBe("-0z[10]5 + 0z[10]3"); // Negative numbers handled
     });
 
     it("should leave invalid base digits unchanged", () => {
@@ -242,7 +242,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.BINARY);
 
       const preprocessed = vm.preprocessExpression("123 + 101");
-      expect(preprocessed).toBe("123 + 0d5"); // 123 invalid in binary, 101 converted
+      expect(preprocessed).toBe("123 + 0z[10]5"); // 123 invalid in binary, 101 converted
     });
 
     it("should handle mixed valid and invalid digits", () => {
@@ -250,7 +250,7 @@ describe("Base Input-Output Functionality", () => {
       vm.setInputBase(BaseSystem.OCTAL);
 
       const preprocessed = vm.preprocessExpression("123 + 789");
-      expect(preprocessed).toBe("0d83 + 789"); // 123 octal = 83, 789 invalid in octal
+      expect(preprocessed).toBe("0z[10]83 + 789"); // 123 octal = 83, 789 invalid in octal
     });
   });
 

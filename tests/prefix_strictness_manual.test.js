@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Calculator } from "../index.js";
+import { BaseSystem } from "@ratmath/core";
 
 class TestCalculator extends Calculator {
     constructor() {
@@ -37,6 +38,12 @@ describe("Prefix Strictness and BASES Command", () => {
 
     afterEach(() => {
         calc.close();
+        // Restore default prefixes that tests might have mutated globally
+        BaseSystem.registerPrefix("t", BaseSystem.TERNARY);
+        BaseSystem.registerPrefix("q", BaseSystem.QUATERNARY);
+        BaseSystem.unregisterPrefix("z");
+        BaseSystem.unregisterPrefix("Q");
+        BaseSystem.unregisterPrefix("A");
     });
 
     test("Strict Prefix Interpretation", () => {
