@@ -1,18 +1,20 @@
 {
     "name": "ratcalc",
-    "version": "1.0.0",
-    "description": "Terminal calculator for ratmath",
+    "version": "2.0.0",
+    "description": "Terminal calculator: a JavaScript REPL with RatMath Core exact arithmetic",
     "main": "index.js",
     "bin": {
         "ratcalc": "index.js"
     },
+    "exports": {
+        ".": "./index.js",
+        "./session": "./src/session.js"
+    },
     "type": "module",
+    "scripts": {
+        "test": "bun test tests"
+    },
     "dependencies": {
-        "@ratmath/core": "^0.6.0",
-        "@ratmath/parser": "^0.2.0",
-        "@ratmath/algebra": "^0.2.0",
-        "@ratmath/reals": "^0.1.0",
-        "@ratmath/oracles": "workspace:*",
-        "@ratmath/stdlib": "workspace:*"
+        "@ratmath/core": "workspace:*"
     }
 }
