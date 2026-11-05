@@ -256,6 +256,8 @@ JavaScript around R:
   F = (n) => R\`1/\${n}\`; F(7)       functions are JavaScript functions
   sum(1, 10, i => R\`\${i}^2\`)  -> 385   product(1, 5, j => j) -> 120
   seq(0, 6, 2, k => R\`\${k}^3\`)  range(0, 1, R\`1/4\`)  sum([R\`1/2\`, R\`1/3\`])
+  xs = range(1, 4); xs.sum() -> 10; xs.multiply(R\`1/2\`) -> [1/2, 1, 3/2, 2]
+  xs.pow(-1).sum() -> 25/12; xs.filter(x => x.isEven()); exact(["1/2", 3]).max()
 
 Display (all results):  display("both" | "exact" | "decimal" | "mixed" | "cf" | "sci")
   digits(n) decimal digits   sciDigits(n) significant digits
@@ -268,6 +270,13 @@ JavaScript numbers like 0.1 are inexact; results that are plain numbers say so.`
 
 // One-line notes for the methods people reach for, by Core type.
 const METHOD_NOTES = {
+  ExactList: [
+    ["sum(fn?) / product(fn?)", "range(1, 4).sum() -> 10, .product() -> 24"],
+    ["add/subtract/multiply/divide(c)", "range(1, 4).multiply(R`1/2`) -> [1/2, 1, 3/2, 2]; c may be a same-length list"],
+    ["pow(n)", "range(1, 4).pow(-1) -> [1, 1/2, 1/3, 1/4]"],
+    ["min() / max()", "exact([\"1/2\", -3]).min() -> -3"],
+    ["map/filter/slice/reduce/...", "every Array method; map, filter and slice keep ExactList"],
+  ],
   Integer: [
     ["add/subtract/multiply/divide(y)", "exact arithmetic (divide gives a Rational)"],
     ["pow(n)", "R`2`.pow(10) -> 1024"],

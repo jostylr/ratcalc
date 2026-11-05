@@ -113,6 +113,20 @@ describe("old calculator features, in JavaScript", () => {
     expect(run(s, "sum([R`1/2`, R`1/3`])").text).toBe("5/6 = 0.8#3");
   });
 
+  test("range and seq give ExactLists with list arithmetic", () => {
+    const s = createSession();
+    run(s, "xs = range(1, 4)");
+    expect(run(s, "xs").text).toBe("[1, 2, 3, 4]");
+    expect(run(s, "xs.sum()").text).toBe("10");
+    expect(run(s, "xs.multiply(R`1/2`)").text).toBe("[1/2, 1, 3/2, 2]");
+    expect(run(s, "xs.pow(-1).sum()").text).toBe("25/12 = 2.08#3");
+    expect(run(s, "xs.filter(x => x.isEven()).product()").text).toBe("8");
+    expect(run(s, 'exact(["1/2", 3]).max()').text).toBe("3");
+    const notes = run(s, "help(xs)").text;
+    expect(notes).toContain("ExactList [1, 2, 3, 4]");
+    expect(notes).toContain("multiply/divide(c)");
+  });
+
   test("one-value formatters", () => {
     const s = createSession();
     expect(run(s, "hex(R`255`)").text).toBe("0xff");

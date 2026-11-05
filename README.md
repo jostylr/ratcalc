@@ -47,7 +47,10 @@ Each line is one input; declarations (`let`, `const`, `var`, `function`,
   reads unprefixed literals in another base.
 - Every `@ratmath/core` export: `Integer`, `Rational`, `RationalInterval`,
   `Fraction`, `parseNumber`, `parseInterval`, `BaseSystem`, and the list
-  helpers `sum`, `product`, `seq`, `range`.
+  helpers `sum`, `product`, `seq`, `range`. `range` and `seq` return an
+  `ExactList` (still an Array) with `.sum()`, `.product()`, `.add(c)`,
+  `.multiply(c)`, `.pow(n)`, `.min()`, `.max()`:
+  ``range(1, 4).multiply(R`1/2`)`` → `[1/2, 1, 3/2, 2]`; `exact([...])` wraps a list.
 - Display of every result: `display("both" | "exact" | "decimal" | "mixed" |
   "cf" | "sci")`, `digits(n)`, `sciDigits(n)`, and an output base with
   `base(16)`, `hex()`, `bin()`, `oct()` (`dec()` or `base(10)` to stop).
