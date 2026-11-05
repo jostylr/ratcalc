@@ -28,7 +28,7 @@ const BLOCKED = new Set([
   "globalThis", "global", "opener", "frames",
 ]);
 
-const DISPLAY_MODES = ["both", "exact", "decimal", "mixed", "cf"];
+const DISPLAY_MODES = ["both", "exact", "decimal", "mixed", "cf", "sci"];
 
 // --- input rewriting -------------------------------------------------------
 
@@ -143,8 +143,56 @@ function repeating(rational, digits) {
   }
 }
 
-function formatRational(value, mode, digits) {
+/** A base system from a radix, a BaseSystem or a string listing the digits. */
+export function baseSystemOf(base) {
+  const { BaseSystem } = Core;
+  if (base instanceof BaseSystem) return base;
+  if (typeof base === "string") return new BaseSystem(base);
+  const radix = Number(base instanceof Integer ? base.value : base);
+  if (!Number.isSafeInteger(radix)) throw new TypeError("a base is a radix (2–62), a BaseSystem or a string of digits");
+  return BaseSystem.fromBase(radix);
+}
+
+/**
+ * RiX-style base text that R reads back: 0xff, -0x1.#5, 0b0.#01, and
+ * 0z[n]... for bases without a registered prefix.
+ */
+export function formatInBase(value, base) {
+  const system = baseSystemOf(base);
+  if (value instanceof RationalInterval) return `${formatInBase(value.low, system)}:${formatInBase(value.high, system)}`;
+  const exact = value instanceof Integer ? value.toRational() : value;
+  if (!(exact instanceof Rational)) throw new TypeError("base formatting needs an Integer, Rational or RationalInterval");
+  const prefix = Core.BaseSystem.getPrefixForSystem(system);
+  const lead = prefix ? `0${prefix}` : `0z[${system.base}]`;
+  const negative = exact.numerator < 0n;
+  const digits = plainDecimal(exact.abs().toRepeatingBase(system));
+  return `${negative ? "-" : ""}${lead}${digits}`;
+}
+
+/** Scientific text in RiX's radix-shift spelling, e.g. 1.6667_^-1 (… marks rounding). */
+export function formatScientific(value, significant = 10) {
+  const exact = value instanceof Integer ? value.toRational() : value;
+  if (exact instanceof RationalInterval) return `${formatScientific(exact.low, significant)}:${formatScientific(exact.high, significant)}`;
+  if (!(exact instanceof Rational)) throw new TypeError("scientific formatting needs an Integer, Rational or RationalInterval");
+  if (exact.numerator === 0n) return "0";
+  const negative = exact.numerator < 0n;
+  const magnitude = exact.abs();
+  const ten = new Rational(10);
+  let exponent = magnitude.numerator.toString().length - magnitude.denominator.toString().length;
+  while (magnitude.lessThan(ten.pow(exponent))) exponent -= 1;
+  while (!magnitude.lessThan(ten.pow(exponent + 1))) exponent += 1;
+  const scaled = magnitude.divide(ten.pow(exponent - significant + 1));
+  let units = scaled.round("half-even");
+  if (units === 10n ** BigInt(significant)) { units /= 10n; exponent += 1; }
+  const text = units.toString();
+  const mantissa = `${text[0]}${text.length > 1 ? `.${text.slice(1).replace(/0+$/, "")}` : ""}`.replace(/\.$/, "");
+  const rounded = !scaled.equals(new Rational(units)) ? "…" : "";
+  return `${negative ? "-" : ""}${mantissa}${exponent === 0 ? "" : `_^${exponent}`}${rounded}`;
+}
+
+function formatRational(value, mode, digits, settings = {}) {
   const exact = value.toString();
+  if (mode === "sci") return formatScientific(value, settings.sciDigits ?? 10);
   if (value.denominator === 1n) return exact;
   if (mode === "exact") return exact;
   const decimal = repeating(value, digits) ?? value.toDecimal(digits);
@@ -156,9 +204,16 @@ function formatRational(value, mode, digits) {
 
 /** Display text for any session value; Core values are shown exactly. */
 export function formatValue(value, options = {}) {
-  const { mode = "both", digits = 30, depth = 0 } = options;
-  if (value instanceof Rational) return formatRational(value, mode, digits);
-  if (value instanceof Integer) return value.toString();
+  const { mode = "both", digits = 30, depth = 0, base = null } = options;
+  const numeric = value instanceof Rational || value instanceof Integer || value instanceof RationalInterval;
+  if (numeric && base && depth === 0) {
+    const inner = formatValue(value, { ...options, base: null });
+    return `${formatInBase(value, base)} = ${inner}`;
+  }
+  if (numeric && base) return formatInBase(value, base);
+  if (value instanceof Rational) return formatRational(value, mode, digits, options);
+  if (value instanceof Integer) return mode === "sci" ? formatScientific(value, options.sciDigits ?? 10) : value.toString();
+  if (value instanceof RationalInterval && mode === "sci") return formatScientific(value, options.sciDigits ?? 10);
   if (value instanceof RationalInterval) {
     const exact = `${value.low.toString()}:${value.high.toString()}`;
     if (mode === "exact" || (value.low.denominator === 1n && value.high.denominator === 1n)) return exact;
@@ -175,7 +230,7 @@ export function formatValue(value, options = {}) {
   if (typeof value === "function") return `[function ${value.name || "anonymous"}]`;
   if (typeof value === "symbol" || typeof value === "boolean") return String(value);
   if (depth > 3) return Array.isArray(value) ? "[…]" : "{…}";
-  const inner = { mode: mode === "both" ? "exact" : mode, digits, depth: depth + 1 };
+  const inner = { ...options, mode: mode === "both" ? "exact" : mode, digits, depth: depth + 1 };
   if (Array.isArray(value)) return `[${value.map((item) => formatValue(item, inner)).join(", ")}]`;
   if (value instanceof Map) return `Map {${[...value].map(([k, v]) => `${formatValue(k, inner)} => ${formatValue(v, inner)}`).join(", ")}}`;
   if (value instanceof Set) return `Set {${[...value].map((item) => formatValue(item, inner)).join(", ")}}`;
@@ -184,24 +239,87 @@ export function formatValue(value, options = {}) {
   return `{${entries.map(([k, v]) => `${k}: ${formatValue(v, inner)}`).join(", ")}}`;
 }
 
-// --- help ------------------------------------------------------------------
+// --- help ---------------------------------------------------------------
 
 export const HELP_TEXT = `RatCalc is JavaScript with exact rational arithmetic.
 Type any JavaScript; the last expression's value is shown.
 
-  R\`1/3 + 1/6\`            exact arithmetic on Core literals -> 1/2
-  R\`1:2 + 3\`              intervals -> 4:5
-  x = R\`2/3\`; R\`\${x}^2\`  interpolated values stay exact -> 4/9
-  new Rational(1, 7)       Core classes: Integer, Rational, RationalInterval, ...
-  parseNumber("0.#142857") Core parsers: parseNumber, parseInterval, ...
-  [1, 2, 3].map(n => R\`1/\${n}\`)  plain JavaScript works around R
-  let total = R\`0\`         declarations persist between inputs
-  ans                      the previous result
+Exact values with R (literals are spelled as in RiX):
+  R\`1/3 + 1/6\`          -> 1/2          R\`1:2 + 3\`        -> 4:5 (interval)
+  R\`1..2/3\`  mixed       R\`0.#3\` repeating   R\`1.2[3:6]\`  R\`1.5[+-0.01]\`
+  R\`3.~7~15~1\` continued fraction -> 355/113    R\`2.5_^-2\` -> 1/40 (no E)
+  R\`0xff.8\`  R\`0b0.#01\`  R\`0z[7]66\`  base prefixes; R.base(16)\`ff.8\`
+  operators + - * / ^ ** ! !! :  and ( );  \${x} inserts a value exactly
 
-R literals: 3, -2, 1/2, 1..3/4, 0.#3, 1.23[56:67], 1_000, 1.5? ; operators + - * / ^ ! :
-Display: display("both" | "exact" | "decimal" | "mixed" | "cf"), digits(n)
-Commands: help(), vars(), clear()   (terminal: .help .vars .clear .exit)
+JavaScript around R:
+  let x = R\`2/3\`; R\`\${x}^2\`        declarations persist; ans = last result
+  F = (n) => R\`1/\${n}\`; F(7)       functions are JavaScript functions
+  sum(1, 10, i => R\`\${i}^2\`)  -> 385   product(1, 5, j => j) -> 120
+  seq(0, 6, 2, k => R\`\${k}^3\`)  range(0, 1, R\`1/4\`)  sum([R\`1/2\`, R\`1/3\`])
+
+Display (all results):  display("both" | "exact" | "decimal" | "mixed" | "cf" | "sci")
+  digits(n) decimal digits   sciDigits(n) significant digits
+  base(16) / hex() / bin() / oct() show results in a base too; dec() or base(10) to stop
+One value:  hex(x) bin(x) oct(x) inBase(x, 7) cf(x) mix(x) deci(x, 40) sci(x, 6)
+Methods:    help(x) lists what a value can do, e.g. help(R\`355/113\`)
+            x.convergents()  x.bestApproximation(100)  x.toContinuedFraction()
+Commands:   help() vars() clear()   (terminal: .help .vars .clear .exit)
 JavaScript numbers like 0.1 are inexact; results that are plain numbers say so.`;
+
+// One-line notes for the methods people reach for, by Core type.
+const METHOD_NOTES = {
+  Integer: [
+    ["add/subtract/multiply/divide(y)", "exact arithmetic (divide gives a Rational)"],
+    ["pow(n)", "R`2`.pow(10) -> 1024"],
+    ["factorial() / doubleFactorial()", "R`5`.factorial() -> 120"],
+    ["gcd(y) / lcm(y)", "R`12`.gcd(R`18`) -> 6"],
+    ["floorDivide(y) / floorModulo(y) / divmod(y)", "floor quotient and remainder"],
+    ["modulo(y)", "truncated remainder (sign of the dividend)"],
+    ["isEven() / isOdd() / sign() / abs()", ""],
+    ["toBase(BaseSystem.fromBase(2))", "digits in another base; or bin(x), hex(x)"],
+    ["toRational() / toNumber()", "conversions (toNumber is inexact)"],
+  ],
+  Rational: [
+    ["numerator / denominator", "bigint parts"],
+    ["add/subtract/multiply/divide(y), pow(n)", "exact arithmetic"],
+    ["toContinuedFraction() / toContinuedFractionString()", "R`355/113` -> [3, 7, 16] / 3.~7~16"],
+    ["convergents() / getConvergent(n)", "R`355/113`.convergents() -> [3, 22/7, 355/113]"],
+    ["bestApproximation(maxDen) / bestConvergent(maxDen)", "R`314159/100000`.bestApproximation(100) -> 311/99"],
+    ["approximationError(target)", "distance to another value"],
+    ["toRepeatingDecimal() / toDecimal(n)", "0.#142857 / truncated digits"],
+    ["toRepeatingBase(system) / toBase(system)", "other bases; or hex(x), inBase(x, 7)"],
+    ["toMixedString()", "R`22/7` -> 3..1/7"],
+    ["floor() / ceil() / round(mode) / roundTo(places)", "rounding (bigint results)"],
+    ["E(n)", "multiply by 10^n"],
+    ["reciprocal() / negate() / abs()", ""],
+  ],
+  RationalInterval: [
+    ["low / high", "endpoints"],
+    ["add/subtract/multiply/divide(y), pow(n), mpow(n)", "interval arithmetic; mpow multiplies copies"],
+    ["midpoint() / mediant()", "R`1:3`.midpoint() -> 2"],
+    ["shortestDecimal()", "R`1/3:1/2`.shortestDecimal() -> 2/5"],
+    ["contains(x) / containsValue(x) / overlaps(y)", "membership and overlap"],
+    ["intersection(y) / union(y)", ""],
+    ["relativeMidDecimalInterval() / compactedDecimalInterval()", "decimal interval text"],
+    ["toRepeatingDecimal() / toMixedString()", ""],
+  ],
+};
+
+/** Methods and short examples for a value (help(x)). */
+export function describeMethods(value) {
+  const type = value?.constructor?.name;
+  const notes = METHOD_NOTES[type];
+  const names = new Set();
+  for (let proto = Object.getPrototypeOf(value ?? {}); proto && proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name !== "constructor" && !name.startsWith("_") && typeof Object.getOwnPropertyDescriptor(proto, name)?.value === "function") names.add(name);
+    }
+  }
+  const all = [...names].sort();
+  if (!notes) return all.length ? `${type ?? typeof value} methods: ${all.join(", ")}` : `${formatValue(value)} has no methods`;
+  const width = Math.max(...notes.map(([name]) => name.length));
+  return [`${type} ${formatValue(value, { mode: "exact" })}`, ...notes.map(([name, note]) => `  .${name.padEnd(width)}  ${note}`), `All methods: ${all.join(", ")}`].join("\n");
+}
 
 // --- session ---------------------------------------------------------------
 
@@ -210,7 +328,7 @@ JavaScript numbers like 0.1 are inexact; results that are plain numbers say so.`
  * { ok: true, value, text } or { ok: false, error, text }.
  */
 export function createSession(options = {}) {
-  const settings = { mode: "both", digits: 30 };
+  const settings = { mode: "both", digits: 30, sciDigits: 10, base: null };
   const variables = new Map();
   const blocked = new Set([...BLOCKED, ...(options.blocked ?? [])]);
   const actions = { clear: options.onClear ?? (() => {}) };
@@ -218,13 +336,35 @@ export function createSession(options = {}) {
   const builtins = {
     ...Core,
     R: Core.R,
-    help: () => HELP_TEXT,
+    help: (...args) => (args.length ? describeMethods(args[0]) : HELP_TEXT),
     display(mode) {
       if (mode === undefined) return settings.mode;
       if (!DISPLAY_MODES.includes(mode)) throw new Error(`display mode must be one of ${DISPLAY_MODES.join(", ")}`);
       settings.mode = mode;
       return `display ${mode}`;
     },
+    sciDigits(n) {
+      if (n === undefined) return settings.sciDigits;
+      if (!Number.isSafeInteger(n) || n < 1 || n > 1000) throw new Error("sciDigits(n) needs a whole number from 1 to 1000");
+      settings.sciDigits = n;
+      return `sciDigits ${n}`;
+    },
+    base(radix) {
+      if (radix === undefined) return settings.base ? `base ${settings.base.base}` : "base 10";
+      const system = baseSystemOf(radix);
+      settings.base = system.base === 10 && radix !== undefined && typeof radix !== "string" ? null : system;
+      return settings.base ? `base ${system.base}` : "base 10";
+    },
+    // With a value: format it once. Without: show every result in that base too.
+    hex: (...args) => (args.length ? formatInBase(args[0], 16) : builtins.base(16)),
+    bin: (...args) => (args.length ? formatInBase(args[0], 2) : builtins.base(2)),
+    oct: (...args) => (args.length ? formatInBase(args[0], 8) : builtins.base(8)),
+    dec: (...args) => (args.length ? formatValue(args[0], { ...settings, mode: "decimal", base: null }) : builtins.base(10)),
+    inBase: (value, radix) => formatInBase(value, radix),
+    cf: (value) => (value instanceof Integer ? value.toRational() : value).toContinuedFractionString(),
+    mix: (value) => value.toMixedString(),
+    deci: (value, n = settings.digits) => formatValue(value, { ...settings, mode: "decimal", digits: n, base: null }),
+    sci: (value, n = settings.sciDigits) => formatScientific(value, n),
     digits(n) {
       if (n === undefined) return settings.digits;
       if (!Number.isSafeInteger(n) || n < 1 || n > 10000) throw new Error("digits(n) needs a whole number from 1 to 10000");

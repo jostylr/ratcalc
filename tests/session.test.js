@@ -95,6 +95,82 @@ describe("JavaScript with Core in scope", () => {
   });
 });
 
+describe("old calculator features, in JavaScript", () => {
+  test("RiX-spelled literals inside R", () => {
+    const s = createSession();
+    expect(run(s, "R`3.~7~15~1`").text.startsWith("355/113")).toBe(true);
+    expect(run(s, "R`2.5_^-2`").text).toBe("1/40 = 0.025");
+    expect(run(s, "R`0xff.8`").text).toBe("511/2 = 255.5");
+    expect(run(s, "R.base(16)`ff.8 / 3`").text).toBe("511/6 = 85.1#6");
+    expect(run(s, "R`5!!`").text).toBe("15");
+  });
+
+  test("sums, products and sequences replace SUM, PROD and SEQ", () => {
+    const s = createSession();
+    expect(run(s, "sum(1, 10, i => R`${i}^2`)").text).toBe("385");
+    expect(run(s, "product(1, 5, j => j)").text).toBe("120");
+    expect(run(s, "seq(0, 5, 2, k => R`${k}^3`)").text).toBe("[0, 8, 64]");
+    expect(run(s, "sum([R`1/2`, R`1/3`])").text).toBe("5/6 = 0.8#3");
+  });
+
+  test("one-value formatters", () => {
+    const s = createSession();
+    expect(run(s, "hex(R`255`)").text).toBe("0xff");
+    expect(run(s, "bin(R`1/3`)").text).toBe("0b0.#01");
+    expect(run(s, "oct(R`-9`)").text).toBe("-0o11");
+    expect(run(s, "inBase(R`1:2`, 2)").text).toBe("0b1:0b10");
+    expect(run(s, "inBase(R`10`, 13)").text).toBe("0z[13]a");
+    expect(run(s, "cf(R`355/113`)").text).toBe("3.~7~16");
+    expect(run(s, "cf(R`3`)").text).toBe("3.~0");
+    expect(run(s, "mix(R`22/7`)").text).toBe("3..1/7");
+    expect(run(s, "deci(R`1/8`)").text).toBe("0.125");
+    expect(run(s, "dec(R`1/8`)").text).toBe("0.125");
+    expect(run(s, "sci(R`1/6`, 5)").text).toBe("1.6667_^-1…");
+    expect(run(s, "sci(R`1/8`)").text).toBe("1.25_^-1");
+    expect(run(s, "sci(R`99999`, 2)").text).toBe("1_^5…");
+    expect(run(s, "sci(R`0`)").text).toBe("0");
+    expect(run(s, "sci(R`1:2`)").text).toBe("1:2");
+    expect(() => run(s, "inBase([1], 2)")).toThrow("base formatting needs");
+    expect(() => run(s, "sci('x')")).toThrow("scientific formatting needs");
+    expect(() => run(s, "inBase(R`1`, 1.5)")).toThrow("a base is a radix");
+  });
+
+  test("a persistent output base and scientific display", () => {
+    const s = createSession();
+    expect(run(s, "hex()").text).toBe("base 16");
+    expect(run(s, "R`255`").text).toBe("0xff = 255");
+    expect(run(s, "R`4/3`").text).toBe("0x1.#5 = 4/3 = 1.#3");
+    expect(run(s, "[R`10`, R`1/2`]").text).toBe("[0xa, 0x0.8]");
+    expect(run(s, "base()").text).toBe("base 16");
+    expect(run(s, 'base("01")').text).toBe("base 2");
+    expect(run(s, "bin()").text).toBe("base 2");
+    expect(run(s, "oct()").text).toBe("base 8");
+    expect(run(s, "dec()").text).toBe("base 10");
+    expect(run(s, "base()").text).toBe("base 10");
+    expect(run(s, "R`255`").text).toBe("255");
+    run(s, 'display("sci")');
+    expect(run(s, "R`1/3`").text).toBe("3.333333333_^-1…");
+    expect(run(s, "R`5`").text).toBe("5");
+    run(s, "sciDigits(3)");
+    expect(run(s, "R`1/3:2/3`").text).toBe("3.33_^-1…:6.67_^-1…");
+    expect(run(s, "sciDigits()").text).toBe("3");
+    expect(() => run(s, "sciDigits(0)")).toThrow("sciDigits");
+  });
+
+  test("help(x) lists what a value can do", () => {
+    const s = createSession();
+    const rational = run(s, "help(R`355/113`)").text;
+    expect(rational).toContain("Rational 355/113");
+    expect(rational).toContain("convergents()");
+    expect(rational).toContain("All methods:");
+    expect(run(s, "help(R`7`)").text).toContain("factorial()");
+    expect(run(s, "help(R`1:2`)").text).toContain("midpoint()");
+    expect(run(s, "help([1])").text).toContain("Array methods:");
+    expect(run(s, "help(Object.create(null))").text).toContain("has no methods");
+    expect(run(s, "R`314159/100000`.bestApproximation(100)").text).toBe("311/99 = 3.#14");
+  });
+});
+
 describe("formatValue", () => {
   test("collections, intervals and other JavaScript values", () => {
     const interval = new RationalInterval(new Rational(1), new Rational(2));
